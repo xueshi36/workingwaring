@@ -17,6 +17,7 @@ import os
 import logging
 import threading
 from datetime import datetime, timedelta
+import sys
 
 class DatabaseManager:
     def __init__(self, db_path="usage_data.db"):
@@ -28,7 +29,23 @@ class DatabaseManager:
         参数:
             db_path (str): 数据库文件路径，默认为当前目录下的usage_data.db
         """
-        self.db_path = db_path
+        # 获取应用程序目录
+        if getattr(sys, 'frozen', False):
+            # 如果是打包后的EXE
+            application_path = os.path.dirname(sys.executable)
+        else:
+            # 如果是开发环境
+            application_path = os.path.dirname(os.path.abspath(__file__))
+        
+        # 确保数据存储目录存在
+        data_dir = os.path.join(application_path, "data")
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        
+        # 设置数据库路径
+        self.db_path = os.path.join(data_dir, db_path)
+        logging.info(f"数据库路径: {self.db_path}")
+        
         self.local = threading.local()  # 创建线程局部存储对象
         
         # 初始化主线程的连接
@@ -61,12 +78,25 @@ class DatabaseManager:
         # 获取当前线程的连接
         conn, cursor = self._get_connection()
         
-        # 检查数据库文件是否已存在
-        db_exists = os.path.exists(self.db_path)
+        try:
+            # 检查表是否存在
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='minute_activity'")
+            table_exists = cursor.fetchone() is not None
+            
+            # 如果表不存在，创建表结构
+            if not table_exists:
+                logging.info("数据库表不存在，正在创建表结构...")
+                self._create_tables(conn, cursor)
+            else:
+                logging.info("数据库表已存在")
         
-        # 如果数据库不存在，创建表结构
-        if not db_exists:
-            self._create_tables(conn, cursor)
+        except Exception as e:
+            logging.error(f"检查数据库表结构时出错: {e}")
+            # 如果发生错误，尝试创建表
+            try:
+                self._create_tables(conn, cursor)
+            except Exception as create_error:
+                logging.error(f"创建数据库表结构失败: {create_error}")
         
         logging.info(f"数据库初始化完成: {self.db_path}")
         

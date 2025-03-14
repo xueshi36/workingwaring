@@ -49,7 +49,14 @@ class ComputerUsageMonitor:
         logging.info("初始化电脑使用时间监控工具")
         
         # 创建输出目录
-        reports_dir = config.REPORTS_DIR if hasattr(config, 'REPORTS_DIR') else "reports"
+        if getattr(sys, 'frozen', False):
+            # 如果是打包后的EXE
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # 如果是开发环境
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        reports_dir = os.path.join(base_path, config.REPORTS_DIR if hasattr(config, 'REPORTS_DIR') else "reports")
         if not os.path.exists(reports_dir):
             os.makedirs(reports_dir)
         

@@ -84,7 +84,8 @@ python main.py --debug  # 启用调试模式，显示详细日志
 
 ## 打包
 
-- python3.6 win11 系统打包pyinstaller -D  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification  --distpath D:\共享\workingwaring\ D:\工作文件\main.py
+- python3.6 win11 系统打包pyinstaller -D  --add-data "D:\工作文件\usage_data.db;data"  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification  --distpath D:\共享\workingwaring\ D:\工作文件\main.py
+
 
 
 ## 隐私说明
