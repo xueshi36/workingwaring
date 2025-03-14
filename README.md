@@ -82,6 +82,11 @@ python main.py --debug  # 启用调试模式，显示详细日志
 - Python 3.6 或更高版本
 - 支持显示桌面通知的系统
 
+## 打包
+
+- python3.6 win11 系统打包pyinstaller -D  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification  --distpath D:\共享\workingwaring\ D:\工作文件\main.py
+
+
 ## 隐私说明
 
 本程序仅在本地运行，所有使用数据均保存在本地，不会向任何远程服务器发送信息。程序监控鼠标移动和键盘按键次数，但不会记录具体的鼠标位置或按键内容。
