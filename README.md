@@ -101,3 +101,5 @@
 ## 许可协议
 
 MIT License 
+
+pyinstaller -D  --add-data "D:\工作文件\usage_data.db;data"  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification --hidden-import matplotlib --hidden-import seaborn --hidden-import numpy --hidden-import pandas --hidden-import pynput --hidden-import pymsgbox --hidden-import config_manager --hidden-import settings_ui --hidden-import tkinter --hidden-import tkinter.ttk --hidden-import sqlite3 --hidden-import PIL --hidden-import PIL._tkinter_finder --hidden-import six --hidden-import packaging --hidden-import packaging.version --hidden-import packaging.specifiers  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification  --distpath D:\共享\workingwaring\ D:\工作文件\main.py
