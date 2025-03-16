@@ -7,7 +7,6 @@
 
 import sys
 import time
-import logging
 import threading
 import argparse
 import atexit
@@ -16,12 +15,16 @@ import os
 from datetime import datetime
 
 import config
+import log_manager
 from activity_monitor import ActivityMonitor
 from time_tracker import TimeTracker
 from notification import NotificationSystem
 from db_manager import DatabaseManager
 from visualization import UsageVisualizer
 from ui_monitor import MonitorWindow  # 新增导入
+
+# 版本信息
+VERSION = "1.1.0"
 
 # 尝试导入系统托盘相关库
 try:
@@ -30,23 +33,15 @@ try:
     TRAY_AVAILABLE = True
 except ImportError:
     TRAY_AVAILABLE = False
-    logging.warning("未安装pystray或PIL库，将不使用系统托盘图标")
+    log_manager.warning("未安装pystray或PIL库，将不使用系统托盘图标")
 
 class ComputerUsageMonitor:
     def __init__(self):
         """初始化电脑使用时间监控工具"""
-        # 设置日志级别
-        log_level = logging.DEBUG if config.DEBUG else logging.INFO
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler("usage_monitor.log", encoding="utf-8")
-            ]
-        )
-        
-        logging.info("初始化电脑使用时间监控工具")
+        # 设置日志
+        log_manager.setup_logger(debug_mode=config.DEBUG)
+        log_manager.log_app_start(VERSION)
+        log_manager.log_system_info()
         
         # 创建输出目录
         if getattr(sys, 'frozen', False):
@@ -59,8 +54,10 @@ class ComputerUsageMonitor:
         reports_dir = os.path.join(base_path, config.REPORTS_DIR if hasattr(config, 'REPORTS_DIR') else "reports")
         if not os.path.exists(reports_dir):
             os.makedirs(reports_dir)
+            log_manager.info(f"创建报告目录: {reports_dir}")
         
         # 初始化组件
+        log_manager.info("正在初始化系统组件...")
         self.db_manager = DatabaseManager()  # 数据库管理器
         self.notification_system = NotificationSystem()  # 通知系统
         self.activity_monitor = ActivityMonitor()  # 活动监控器
@@ -85,10 +82,11 @@ class ComputerUsageMonitor:
         
         # 注册退出处理
         atexit.register(self.cleanup)
+        log_manager.info("系统初始化完成")
         
     def start(self):
         """启动监控服务"""
-        logging.info("启动电脑使用时间监控服务")
+        log_manager.info("启动电脑使用时间监控服务")
         
         # 发送启动通知
         self.notification_system.send_notification(
@@ -105,12 +103,13 @@ class ComputerUsageMonitor:
         
         # 如果支持系统托盘，则在单独线程中创建托盘图标
         if TRAY_AVAILABLE:
+            log_manager.info("创建系统托盘图标")
             tray_thread = threading.Thread(target=self._create_tray_icon)
             tray_thread.daemon = True
             tray_thread.start()
         else:
             # 如果不支持系统托盘，则直接显示监视器窗口
-            logging.info("不支持系统托盘，将直接显示监视器窗口")
+            log_manager.info("不支持系统托盘，将直接显示监视器窗口")
                 
     def _create_tray_icon(self):
         """创建系统托盘图标和菜单"""
@@ -122,6 +121,7 @@ class ComputerUsageMonitor:
             pystray.MenuItem("显示主窗口", self._show_main_window),
             pystray.MenuItem("显示使用统计", self._show_usage_stats),
             pystray.MenuItem("查看统计报告", self._show_usage_report),
+            pystray.MenuItem("设置", self._open_settings),
             pystray.MenuItem("重置计时器", self._reset_timer),
             pystray.MenuItem("退出", self._exit_app)
         ]
@@ -134,6 +134,7 @@ class ComputerUsageMonitor:
             menu=pystray.Menu(*menu_items)
         )
         
+        log_manager.info("系统托盘图标已创建，进入托盘图标主循环")
         # 启动托盘图标（会阻塞当前线程）
         self.tray_icon.run()
         
@@ -161,10 +162,12 @@ class ComputerUsageMonitor:
     
     def _show_main_window(self, icon, item):
         """显示主窗口"""
+        log_manager.info("用户请求：显示主窗口")
         self.monitor_window.show()
         
     def _show_usage_stats(self, icon, item):
         """显示使用统计信息"""
+        log_manager.info("用户请求：显示使用统计")
         stats = self.time_tracker.get_usage_stats()
         message = (
             f"连续使用时间: {stats['continuous_usage_minutes']}分钟\n"
@@ -174,6 +177,7 @@ class ComputerUsageMonitor:
         
     def _show_usage_report(self, icon, item):
         """生成并显示使用统计报告"""
+        log_manager.info("用户请求：生成并显示使用统计报告")
         # 通知用户正在生成报告
         self.notification_system.send_notification(
             "正在生成报告", 
@@ -187,29 +191,42 @@ class ComputerUsageMonitor:
             # 在浏览器中打开报告
             webbrowser.open(f"file://{os.path.abspath(report_path)}")
             
-            logging.info(f"已打开统计报告: {report_path}")
+            log_manager.log_report_generation(report_path)
         except Exception as e:
             # 生成报告失败时通知用户
+            error_msg = f"无法生成统计报告: {e}"
             self.notification_system.send_notification(
                 "生成报告失败", 
-                f"无法生成统计报告: {e}"
+                error_msg
             )
-            logging.error(f"生成报告失败: {e}")
+            log_manager.error_detail("报告生成", error_msg)
         
     def _reset_timer(self, icon, item):
         """重置计时器"""
+        log_manager.info("用户请求：重置计时器")
         self.time_tracker.reset()
         self.notification_system.send_notification("计时器已重置", "连续使用时间已重置为0")
+        log_manager.log_activity_reset("用户手动重置")
         
     def _exit_app(self, icon, item):
         """退出应用"""
+        log_manager.info("用户请求：退出应用")
         icon.stop()
         self.cleanup()
         sys.exit(0)
         
+    def _open_settings(self, icon, item):
+        """打开设置窗口"""
+        log_manager.info("用户请求：打开设置窗口")
+        # 显示主窗口
+        self.monitor_window.show()
+        
+        # 打开设置
+        self.monitor_window._open_settings()
+        
     def cleanup(self):
         """清理资源并退出"""
-        logging.info("正在关闭电脑使用时间监控工具...")
+        log_manager.info("正在关闭电脑使用时间监控工具...")
         
         # 停止时间跟踪
         if hasattr(self, 'time_tracker'):
@@ -230,18 +247,24 @@ class ComputerUsageMonitor:
         if hasattr(self, 'tray_icon') and self.tray_icon is not None:
             self.tray_icon.stop()
             
-        logging.info("电脑使用时间监控工具已关闭")
+        log_manager.log_app_exit()
 
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description="电脑使用时间监控工具")
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
     parser.add_argument('--report', action='store_true', help='生成并显示使用报告')
+    parser.add_argument('--version', action='store_true', help='显示版本信息')
     return parser.parse_args()
 
 if __name__ == "__main__":
     # 解析命令行参数
     args = parse_arguments()
+    
+    # 如果指定了版本参数，显示版本信息并退出
+    if args.version:
+        print(f"电脑使用时间监控工具 v{VERSION}")
+        sys.exit(0)
     
     # 如果指定了调试模式，覆盖配置设置
     if args.debug:
@@ -253,7 +276,9 @@ if __name__ == "__main__":
     # 如果指定了报告参数，生成并显示报告
     if args.report:
         import webbrowser
+        log_manager.info("通过命令行参数请求生成报告")
         report_path = monitor.visualizer.generate_usage_stats_html()
+        log_manager.log_report_generation(report_path)
         webbrowser.open(f"file://{os.path.abspath(report_path)}")
     else:
         # 否则正常启动监控

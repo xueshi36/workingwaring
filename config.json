@@ -1,0 +1,18 @@
+{
+    "activity_check_interval": 1,
+    "continuous_usage_alert": 60,
+    "inactivity_reset": 10,
+    "app_name": "电脑使用时间监控工具",
+    "notification_title": "休息提醒",
+    "notification_message": "您已连续使用电脑{}分钟，建议休息一下眼睛和身体！",
+    "database_path": "usage_data.db",
+    "reports_dir": "reports",
+    "report_days": 30,
+    "auto_report_enabled": true,
+    "auto_report_interval": 60,
+    "debug": false,
+    "tray_tooltip": "电脑使用时间监控",
+    "tray_icon_path": "icon.ico",
+    "ui_window_title": "电脑使用时间监控",
+    "ui_update_interval": 1
+}

@@ -9,7 +9,6 @@
 """
 
 import os
-import logging
 import matplotlib
 matplotlib.use('Agg')  # 使用非交互式后端
 import matplotlib.pyplot as plt
@@ -18,6 +17,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+import log_manager
 
 class UsageVisualizer:
     def __init__(self, db_manager, output_dir="reports"):
@@ -37,16 +37,16 @@ class UsageVisualizer:
         # 设置中文字体支持
         self._setup_fonts()
             
-        logging.info(f"可视化系统初始化，输出目录: {output_dir}")
+        log_manager.info(f"可视化系统初始化，输出目录: {output_dir}")
         
     def _setup_fonts(self):
         """设置支持中文的字体"""
         try:
             plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS']
             plt.rcParams['axes.unicode_minus'] = False
-            logging.info("字体设置完成，支持中文显示")
+            log_manager.info("字体设置完成，支持中文显示")
         except Exception as e:
-            logging.warning(f"设置中文字体失败: {e}")
+            log_manager.warning(f"设置中文字体失败: {e}")
         
     def generate_daily_report(self, date=None):
         """生成每日使用报告
@@ -60,6 +60,7 @@ class UsageVisualizer:
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
             
+        log_manager.info(f"开始生成{date}的每日使用报告...")
         hourly_data = self.db_manager.get_day_activity(date)
         
         # 创建图形
@@ -102,7 +103,7 @@ class UsageVisualizer:
         plt.savefig(filepath, dpi=120)
         plt.close(fig)
         
-        logging.info(f"生成每日报告: {filepath}")
+        log_manager.info(f"生成每日报告图表: {filepath}")
         return filepath
         
     def generate_weekly_heatmap(self, end_date=None):
@@ -117,6 +118,7 @@ class UsageVisualizer:
         if end_date is None:
             end_date = datetime.now().strftime("%Y-%m-%d")
             
+        log_manager.info(f"开始生成截至{end_date}的周热力图...")
         # 获取一周的数据
         weekly_data = self.db_manager.get_weekly_heatmap_data(end_date)
         
@@ -124,6 +126,12 @@ class UsageVisualizer:
         dates = list(weekly_data.keys())
         dates.sort()  # 确保日期有序
         
+        # 记录数据情况
+        if len(dates) == 0:
+            log_manager.warning("没有找到周数据，热力图可能为空")
+        else:
+            log_manager.info(f"获取到{len(dates)}天的数据，从{dates[0]}到{dates[-1]}")
+            
         # 创建数据矩阵
         data_matrix = []
         for date in dates:
@@ -166,7 +174,7 @@ class UsageVisualizer:
                     ax.text(j, i, str(value), ha="center", va="center", color=text_color)
         
         # 设置标题
-        start_date = dates[0]
+        start_date = dates[0] if dates else "无数据"
         plt.title(f"一周电脑使用热力图 ({start_date} 至 {end_date})", fontsize=14)
         plt.xlabel("小时", fontsize=12)
         
@@ -179,7 +187,7 @@ class UsageVisualizer:
         plt.savefig(filepath, dpi=120)
         plt.close(fig)
         
-        logging.info(f"生成周热力图: {filepath}")
+        log_manager.info(f"生成周热力图: {filepath}")
         return filepath
         
     def generate_monthly_summary(self, days=30):
@@ -191,12 +199,15 @@ class UsageVisualizer:
         返回:
             str: 生成的报告文件路径
         """
+        log_manager.info(f"开始生成过去{days}天的月度摘要...")
         # 获取每日汇总数据
         daily_data = self.db_manager.get_daily_summaries(days)
         
         if not daily_data:
-            logging.warning("没有足够的数据生成月度摘要")
+            log_manager.warning("没有足够的数据生成月度摘要")
             return None
+            
+        log_manager.info(f"获取到{len(daily_data)}天的数据进行月度摘要")
             
         # 准备绘图数据
         dates = []
@@ -259,7 +270,7 @@ class UsageVisualizer:
         plt.savefig(filepath, dpi=120)
         plt.close(fig)
         
-        logging.info(f"生成月度摘要: {filepath}")
+        log_manager.info(f"生成月度摘要: {filepath}")
         return filepath
 
     def generate_usage_stats_html(self):
@@ -268,97 +279,116 @@ class UsageVisualizer:
         返回:
             str: 生成的HTML文件路径
         """
+        log_manager.info("开始生成综合使用统计HTML报告...")
+        
         # 生成所有报表
         today = datetime.now().strftime("%Y-%m-%d")
-        daily_report = self.generate_daily_report()
-        weekly_heatmap = self.generate_weekly_heatmap()
-        monthly_summary = self.generate_monthly_summary()
         
-        # 准备HTML内容
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>电脑使用时间统计报告</title>
-            <style>
-                body {{
-                    font-family: 'Microsoft YaHei', Arial, sans-serif;
-                    margin: 0;
-                    padding: 20px;
-                    background-color: #f5f7fa;
-                    color: #333;
-                }}
-                .container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    background-color: white;
-                    padding: 20px;
-                    border-radius: 8px;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                }}
-                h1, h2 {{
-                    color: #2c3e50;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 10px;
-                }}
-                .report-section {{
-                    margin: 30px 0;
-                }}
-                .report-image {{
-                    width: 100%;
-                    max-width: 1100px;
-                    height: auto;
-                    margin: 15px 0;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                }}
-                .footer {{
-                    margin-top: 30px;
-                    text-align: center;
-                    color: #7f8c8d;
-                    font-size: 0.9em;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>电脑使用时间统计报告</h1>
-                <p>生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-                
-                <div class="report-section">
-                    <h2>今日使用情况</h2>
-                    <img src="{os.path.basename(daily_report)}" alt="每日使用报告" class="report-image">
-                    <p>此图表显示了今天每小时的电脑活跃使用分钟数。</p>
-                </div>
-                
-                <div class="report-section">
-                    <h2>一周使用热力图</h2>
-                    <img src="{os.path.basename(weekly_heatmap)}" alt="周热力图" class="report-image">
-                    <p>热力图显示了过去一周每小时的使用情况，颜色越深表示使用时间越长。</p>
-                </div>
-                
-                <div class="report-section">
-                    <h2>月度使用摘要</h2>
-                    <img src="{os.path.basename(monthly_summary)}" alt="月度摘要" class="report-image">
-                    <p>上图显示过去30天的每日总使用时间，下图显示每日最长连续使用会话。</p>
-                </div>
-                
-                <div class="footer">
-                    <p>电脑使用时间监控工具 &copy; {datetime.now().year}</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # 保存HTML文件
-        filename = f"usage_report_{today}.html"
-        filepath = os.path.join(self.output_dir, filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        try:
+            log_manager.info("正在生成每日报告...")
+            daily_report = self.generate_daily_report()
             
-        logging.info(f"生成HTML报告: {filepath}")
-        return filepath 
+            log_manager.info("正在生成周热力图...")
+            weekly_heatmap = self.generate_weekly_heatmap()
+            
+            log_manager.info("正在生成月度摘要...")
+            monthly_summary = self.generate_monthly_summary()
+            
+            log_manager.info("所有图表生成完成，开始组装HTML报告...")
+            
+            # 确保所有报表都生成成功
+            if not daily_report or not weekly_heatmap or not monthly_summary:
+                log_manager.warning("部分报表生成失败，HTML报告可能不完整")
+            
+            # 准备HTML内容
+            generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            html_content = f"""
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>电脑使用时间统计报告</title>
+                <style>
+                    body {{
+                        font-family: 'Microsoft YaHei', Arial, sans-serif;
+                        margin: 0;
+                        padding: 20px;
+                        background-color: #f5f7fa;
+                        color: #333;
+                    }}
+                    .container {{
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background-color: white;
+                        padding: 20px;
+                        border-radius: 8px;
+                        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    }}
+                    h1, h2 {{
+                        color: #2c3e50;
+                        border-bottom: 1px solid #eee;
+                        padding-bottom: 10px;
+                    }}
+                    .report-section {{
+                        margin: 30px 0;
+                    }}
+                    .report-image {{
+                        width: 100%;
+                        max-width: 1100px;
+                        height: auto;
+                        margin: 15px 0;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                    }}
+                    .footer {{
+                        margin-top: 30px;
+                        text-align: center;
+                        color: #7f8c8d;
+                        font-size: 0.9em;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>电脑使用时间统计报告</h1>
+                    <p>生成时间: {generation_time}</p>
+                    
+                    <div class="report-section">
+                        <h2>今日使用情况</h2>
+                        <img src="{os.path.basename(daily_report)}" alt="每日使用报告" class="report-image">
+                        <p>此图表显示了今天每小时的电脑活跃使用分钟数。</p>
+                    </div>
+                    
+                    <div class="report-section">
+                        <h2>一周使用热力图</h2>
+                        <img src="{os.path.basename(weekly_heatmap)}" alt="周热力图" class="report-image">
+                        <p>热力图显示了过去一周每小时的使用情况，颜色越深表示使用时间越长。</p>
+                    </div>
+                    
+                    <div class="report-section">
+                        <h2>月度使用摘要</h2>
+                        <img src="{os.path.basename(monthly_summary)}" alt="月度摘要" class="report-image">
+                        <p>上图显示过去30天的每日总使用时间，下图显示每日最长连续使用会话。</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>电脑使用时间监控工具 &copy; {datetime.now().year}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # 保存HTML文件
+            filename = f"usage_report_{today}.html"
+            filepath = os.path.join(self.output_dir, filename)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+                
+            log_manager.log_report_generation(filepath)
+            return filepath
+        except Exception as e:
+            log_manager.error_detail("报告生成", f"生成HTML报告过程中出错: {e}")
+            raise  # 重新抛出异常，让调用者处理 
