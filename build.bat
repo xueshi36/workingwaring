@@ -1,6 +1,7 @@
 @echo off
 echo ========================================
-echo 电脑使用时间监控工具打包脚本
+echo 电脑使用时间监控工具打包脚本 v1.3.2
+echo 添加logger_config模块支持并优化导入
 echo ========================================
 echo.
 
@@ -22,6 +23,34 @@ if %errorlevel% neq 0 (
     )
 )
 
+REM 检查必要的依赖库
+echo [提示] 检查必要的依赖库...
+python -c "import pystray, PIL" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 缺少必要的依赖库，正在安装...
+    pip install pystray pillow
+    if %errorlevel% neq 0 (
+        echo [警告] 依赖库安装失败，系统托盘功能可能无法正常工作。
+    ) else (
+        echo [提示] 依赖库安装成功。
+    )
+)
+
+REM 确保logger_config.py存在
+if not exist "logger_config.py" (
+    echo [错误] 找不到logger_config.py文件，打包将失败。
+    exit /b 1
+)
+
+REM 创建系统托盘图标
+echo [提示] 创建系统托盘图标...
+python create_icon.py "icon.ico"
+if %errorlevel% neq 0 (
+    echo [警告] 创建图标失败，将使用默认图标
+) else (
+    echo [提示] 系统托盘图标创建成功
+)
+
 REM 创建输出目录
 set DIST_PATH=D:\共享\workingwaring\
 if not exist "%DIST_PATH%" (
@@ -40,6 +69,12 @@ if not exist "reports" (
     echo [提示] 已创建reports目录
 )
 
+REM 确保logs目录存在
+if not exist "logs" (
+    mkdir "logs"
+    echo [提示] 已创建logs目录
+)
+
 echo [提示] 开始打包应用程序...
 echo [提示] 这可能需要几分钟时间，请耐心等待...
 
@@ -47,6 +82,7 @@ REM 执行PyInstaller打包命令
 pyinstaller -D ^
 --add-data "D:\工作文件\usage_data.db;data"  ^
 --add-data "D:\工作文件\icon.ico;." ^
+--add-data "D:\工作文件\icon.png;." ^
 --add-data "D:\工作文件\config.json;." ^
 --hidden-import plyer.platforms ^
 --hidden-import plyer.platforms.win.notification ^
@@ -58,11 +94,18 @@ pyinstaller -D ^
 --hidden-import pymsgbox ^
 --hidden-import config_manager ^
 --hidden-import settings_ui ^
+--hidden-import logger_config ^
+--hidden-import log_manager ^
 --hidden-import tkinter ^
 --hidden-import tkinter.ttk ^
 --hidden-import sqlite3 ^
 --hidden-import PIL ^
 --hidden-import PIL._tkinter_finder ^
+--hidden-import PIL.Image ^
+--hidden-import PIL.ImageDraw ^
+--hidden-import pystray ^
+--hidden-import pystray._win32 ^
+--hidden-import pystray._base ^
 --hidden-import six ^
 --hidden-import packaging ^
 --hidden-import packaging.version ^
@@ -73,9 +116,12 @@ pyinstaller -D ^
 --hidden-import threading ^
 --hidden-import datetime ^
 --hidden-import ctypes ^
+--collect-all pystray ^
+--collect-data PIL ^
 --distpath %DIST_PATH% ^
 --icon="D:\工作文件\icon.ico" ^
 --name="电脑使用时间监控" ^
+--windowed ^
 main.py
 
 if %errorlevel% neq 0 (
@@ -92,9 +138,34 @@ REM 确保必要的目录存在
 echo [提示] 创建必要的目录结构...
 if not exist "%DIST_PATH%电脑使用时间监控\reports" (
     mkdir "%DIST_PATH%电脑使用时间监控\reports"
+    echo [提示] 已创建报告目录
 )
 if not exist "%DIST_PATH%电脑使用时间监控\logs" (
     mkdir "%DIST_PATH%电脑使用时间监控\logs"
+    echo [提示] 已创建日志目录
+)
+
+REM 复制当前目录中的reports文件夹内容到打包目录
+echo [提示] 复制示例报告...
+if exist "reports" (
+    xcopy /s /y /i "reports\*" "%DIST_PATH%电脑使用时间监控\reports\" >nul 2>&1
+    echo [提示] 已复制reports文件夹中的内容
+)
+
+REM 创建其他必要目录
+if not exist "%DIST_PATH%电脑使用时间监控\data" (
+    mkdir "%DIST_PATH%电脑使用时间监控\data"
+    echo [提示] 已创建数据目录
+)
+
+REM 验证目录权限
+echo [提示] 验证目录权限...
+echo 测试文件 > "%DIST_PATH%电脑使用时间监控\reports\test.txt" 2>nul
+if %errorlevel% neq 0 (
+    echo [警告] 可能没有对报告目录的写入权限，请确保程序有足够权限
+) else (
+    del "%DIST_PATH%电脑使用时间监控\reports\test.txt" >nul 2>&1
+    echo [提示] 报告目录权限正常
 )
 
 REM 创建启动快捷方式

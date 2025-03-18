@@ -11,6 +11,17 @@ from datetime import datetime, timedelta
 import log_manager
 import config
 
+# 移除对main的直接导入
+# from main import TRAY_AVAILABLE
+
+# 使用一个全局变量代替直接导入
+TRAY_AVAILABLE = False
+
+def set_tray_available(value):
+    """设置系统托盘是否可用的外部接口"""
+    global TRAY_AVAILABLE
+    TRAY_AVAILABLE = value
+
 class MonitorWindow:
     def __init__(self, time_tracker, visualizer):
         """初始化监视器窗口
@@ -39,8 +50,10 @@ class MonitorWindow:
         # 创建主窗口
         self.root = tk.Tk()
         self.root.title("电脑使用时间监控")
-        self.root.geometry("430x430")  # 增加窗口高度以容纳新内容
-        self.root.resizable(False, False)
+        self.root.geometry("430x600")  # 增加窗口高度以容纳所有内容
+        # self.root.resizable(False, False)
+        self.root.resizable(True, True)  # 允许用户调整窗口大小
+
         
         # 设置窗口图标
         try:
@@ -181,6 +194,8 @@ class MonitorWindow:
         copyright_label = ttk.Label(main_frame, text=f"© {datetime.now().year} 电脑使用时间监控工具", style="Data.TLabel")
         copyright_label.pack(side=tk.BOTTOM, pady=(15, 0))
         
+        self.root.update_idletasks()  # 更新所有挂起的任务
+        self.root.geometry("430x600")  # 让窗口根据内容自动调整大小
         log_manager.info("UI界面元素创建完成")
         
     def start(self):
@@ -280,19 +295,38 @@ class MonitorWindow:
             # 更新最新报告信息
             try:
                 report_dir = config.REPORTS_DIR
-                if os.path.exists(report_dir):
-                    report_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
-                    if report_files:
-                        # 按修改时间排序，获取最新报告
-                        latest_report = sorted(report_files, 
-                                               key=lambda x: os.path.getmtime(os.path.join(report_dir, x)), 
-                                               reverse=True)[0]
-                        mod_time = datetime.fromtimestamp(os.path.getmtime(os.path.join(report_dir, latest_report)))
-                        self.last_report_label.config(text=f"{latest_report} ({mod_time.strftime('%m-%d %H:%M')})")
-                    else:
+                # 确保报告目录存在（如果报告目录不存在，创建它）
+                if not os.path.isabs(report_dir):
+                    # 转换为绝对路径
+                    report_dir = os.path.abspath(report_dir)
+                    
+                # 确保目录存在
+                if not os.path.exists(report_dir):
+                    try:
+                        os.makedirs(report_dir, exist_ok=True)
+                        log_manager.info(f"创建报告目录: {report_dir}")
                         self.last_report_label.config(text="暂无报告")
+                        return
+                    except Exception as dir_error:
+                        log_manager.error(f"无法创建报告目录: {dir_error}")
+                        self.last_report_label.config(text="报告目录创建失败")
+                        return
+                
+                # 搜索报告文件
+                report_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
+                if report_files:
+                    # 按修改时间排序，获取最新报告
+                    latest_report = sorted(report_files, 
+                                          key=lambda x: os.path.getmtime(os.path.join(report_dir, x)), 
+                                          reverse=True)[0]
+                    mod_time = datetime.fromtimestamp(os.path.getmtime(os.path.join(report_dir, latest_report)))
+                    # 截断文件名，避免过长无法显示
+                    display_name = latest_report
+                    if len(latest_report) > 25:
+                        display_name = latest_report[:22] + "..."
+                    self.last_report_label.config(text=f"{display_name} ({mod_time.strftime('%m-%d %H:%M')})")
                 else:
-                    self.last_report_label.config(text="报告目录不存在")
+                    self.last_report_label.config(text="暂无报告")
             except Exception as e:
                 log_manager.error(f"更新报告信息失败: {e}")
                 self.last_report_label.config(text="报告信息获取失败")
@@ -303,28 +337,66 @@ class MonitorWindow:
     def _on_close(self):
         """窗口关闭时的处理"""
         # 关闭窗口但不终止程序
-        log_manager.info("用户关闭UI窗口，隐藏到系统托盘")
-        self.root.withdraw()
+        log_manager.info("用户关闭UI窗口，尝试隐藏到系统托盘")
+        
+        if TRAY_AVAILABLE:
+            try:
+                # 直接隐藏窗口，不尝试访问main模块，避免循环导入
+                # 先给用户一个提示
+                import tkinter.messagebox as messagebox
+                messagebox.showinfo("提示", "程序将继续在后台运行。\n您可以通过点击系统托盘区域的程序图标访问程序功能。")
+                
+                # 等待一秒让系统托盘图标显示出来
+                import time
+                time.sleep(0.5)
+                
+                # 隐藏窗口
+                self.root.withdraw()
+                log_manager.info("窗口已隐藏到系统托盘")
+                
+            except Exception as e:
+                log_manager.error(f"隐藏到系统托盘失败: {e}")
+                import tkinter.messagebox as messagebox
+                messagebox.showwarning("警告", "无法隐藏到系统托盘，窗口将保持可见。\n如果看不到系统托盘图标，请尝试刷新系统托盘区域。")
+        else:
+            # 如果系统托盘不可用，提示用户并保持窗口可见
+            import tkinter.messagebox as messagebox
+            messagebox.showinfo("提示", "系统托盘功能不可用，窗口将保持打开。\n请检查是否安装了pystray和Pillow库。")
+            log_manager.warning("系统托盘不可用，窗口无法隐藏")
         
     def _generate_report(self):
         """生成使用报告"""
         try:
             log_manager.info("通过UI界面请求生成报告")
+            
+            # 确保报告目录存在
+            report_dir = config.REPORTS_DIR
+            if not os.path.exists(report_dir):
+                os.makedirs(report_dir, exist_ok=True)
+                log_manager.info(f"创建报告目录: {report_dir}")
+                
             report_path = self.visualizer.generate_usage_stats_html()
             log_manager.info(f"已生成报告: {report_path}")
             
             # 更新UI显示
-            self.alert_label.config(text=f"报告已生成: {os.path.basename(report_path)}")
+            filename = os.path.basename(report_path)
+            # 截断文件名，避免过长
+            if len(filename) > 25:
+                display_name = filename[:22] + "..."
+            else:
+                display_name = filename
+                
+            self.alert_label.config(text=f"报告已生成: {display_name}")
             
             # 同时更新报告显示
             if os.path.exists(report_path):
                 mod_time = datetime.fromtimestamp(os.path.getmtime(report_path))
                 self.last_report_label.config(
-                    text=f"{os.path.basename(report_path)} ({mod_time.strftime('%m-%d %H:%M')})"
+                    text=f"{display_name} ({mod_time.strftime('%m-%d %H:%M')})"
                 )
         except Exception as e:
             log_manager.error_detail("报告生成", f"生成报告失败: {e}")
-            self.alert_label.config(text=f"生成报告失败: {e}")
+            self.alert_label.config(text=f"生成报告失败: {str(e)[:50]}...")
             
     def _view_report(self):
         """查看最新报告"""
@@ -333,7 +405,12 @@ class MonitorWindow:
             
             # 检查是否存在报告
             report_dir = config.REPORTS_DIR
-            if os.path.exists(report_dir):
+            if not os.path.exists(report_dir):
+                # 报告目录不存在，创建并生成新报告
+                os.makedirs(report_dir, exist_ok=True)
+                log_manager.info(f"创建报告目录: {report_dir}")
+                report_path = self.visualizer.generate_usage_stats_html()
+            else:
                 report_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
                 if not report_files:
                     # 没有现有报告，生成一个新的
@@ -346,27 +423,32 @@ class MonitorWindow:
                                           reverse=True)[0]
                     report_path = os.path.join(report_dir, latest_report)
                     log_manager.info(f"找到最新报告: {report_path}")
-            else:
-                # 报告目录不存在，创建并生成新报告
-                os.makedirs(report_dir, exist_ok=True)
-                log_manager.info(f"创建报告目录: {report_dir}")
-                report_path = self.visualizer.generate_usage_stats_html()
+            
+            # 确保路径是绝对路径
+            report_path = os.path.abspath(report_path)
             
             # 在浏览器中打开
             import webbrowser
-            webbrowser.open(f"file://{os.path.abspath(report_path)}")
+            webbrowser.open(f"file://{report_path}")
             log_manager.info(f"已在浏览器中打开报告: {report_path}")
             
             # 更新UI显示
             if os.path.exists(report_path):
                 mod_time = datetime.fromtimestamp(os.path.getmtime(report_path))
+                filename = os.path.basename(report_path)
+                # 截断文件名，避免过长
+                if len(filename) > 25:
+                    display_name = filename[:22] + "..."
+                else:
+                    display_name = filename
+                    
                 self.last_report_label.config(
-                    text=f"{os.path.basename(report_path)} ({mod_time.strftime('%m-%d %H:%M')})"
+                    text=f"{display_name} ({mod_time.strftime('%m-%d %H:%M')})"
                 )
                 
         except Exception as e:
             log_manager.error_detail("报告查看", f"查看报告失败: {e}")
-            self.alert_label.config(text=f"查看报告失败: {e}")
+            self.alert_label.config(text=f"查看报告失败: {str(e)[:50]}...")
             
     def _reset_timer(self):
         """重置计时器"""
@@ -389,7 +471,14 @@ class MonitorWindow:
         """显示窗口(如果被隐藏)"""
         if self.root:
             log_manager.info("显示主窗口")
+            # 先尝试更新窗口状态
+            self.root.update_idletasks()
+            # 显示窗口并将其置于最前面
             self.root.deiconify()
+            self.root.lift()
+            self.root.attributes('-topmost', True)
+            # 短暂置顶后恢复正常
+            self.root.after(100, lambda: self.root.attributes('-topmost', False))
 
     def _open_settings(self):
         """打开设置窗口"""

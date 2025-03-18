@@ -31,13 +31,26 @@ class UsageVisualizer:
         self.output_dir = output_dir
         
         # 确保输出目录存在
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        try:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+                log_manager.info(f"可视化器创建输出目录: {output_dir}")
+        except Exception as e:
+            log_manager.error(f"创建报告目录失败: {e}")
+            # 尝试使用相对路径
+            if not os.path.isabs(output_dir):
+                alt_dir = os.path.abspath(output_dir)
+                try:
+                    os.makedirs(alt_dir, exist_ok=True)
+                    self.output_dir = alt_dir
+                    log_manager.info(f"改用绝对路径创建输出目录: {alt_dir}")
+                except Exception as e2:
+                    log_manager.error(f"创建绝对路径报告目录也失败: {e2}")
             
         # 设置中文字体支持
         self._setup_fonts()
             
-        log_manager.info(f"可视化系统初始化，输出目录: {output_dir}")
+        log_manager.info(f"可视化系统初始化，输出目录: {self.output_dir}")
         
     def _setup_fonts(self):
         """设置支持中文的字体"""
@@ -281,6 +294,17 @@ class UsageVisualizer:
         """
         log_manager.info("开始生成综合使用统计HTML报告...")
         
+        # 确保目录存在
+        try:
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir, exist_ok=True)
+                log_manager.info(f"创建报告输出目录: {self.output_dir}")
+        except Exception as e:
+            log_manager.error(f"确保报告目录存在时出错: {e}")
+            # 尝试使用当前目录
+            self.output_dir = "."
+            log_manager.info("改用当前目录作为输出目录")
+        
         # 生成所有报表
         today = datetime.now().strftime("%Y-%m-%d")
         
@@ -384,11 +408,24 @@ class UsageVisualizer:
             filename = f"usage_report_{today}.html"
             filepath = os.path.join(self.output_dir, filename)
             
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(html_content)
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                log_manager.log_report_generation(filepath)
+                return filepath
+            except Exception as e:
+                log_manager.error(f"保存HTML报告文件失败: {e}")
+                # 尝试使用绝对路径
+                try:
+                    alt_path = os.path.abspath(os.path.join(".", filename))
+                    with open(alt_path, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    log_manager.info(f"使用替代路径保存HTML报告: {alt_path}")
+                    return alt_path
+                except Exception as e2:
+                    log_manager.error(f"使用替代路径保存HTML也失败: {e2}")
+                    raise
                 
-            log_manager.log_report_generation(filepath)
-            return filepath
         except Exception as e:
             log_manager.error_detail("报告生成", f"生成HTML报告过程中出错: {e}")
             raise  # 重新抛出异常，让调用者处理 
