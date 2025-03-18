@@ -337,27 +337,19 @@ class MonitorWindow:
     def _on_close(self):
         """窗口关闭时的处理"""
         # 关闭窗口但不终止程序
-        log_manager.info("用户关闭UI窗口，尝试隐藏到系统托盘")
+        log_manager.info("用户关闭UI窗口，隐藏到系统托盘")
         
         if TRAY_AVAILABLE:
             try:
-                # 直接隐藏窗口，不尝试访问main模块，避免循环导入
-                # 先给用户一个提示
-                import tkinter.messagebox as messagebox
-                messagebox.showinfo("提示", "程序将继续在后台运行。\n您可以通过点击系统托盘区域的程序图标访问程序功能。")
-                
-                # 等待一秒让系统托盘图标显示出来
-                import time
-                time.sleep(0.5)
-                
-                # 隐藏窗口
+                # 确保托盘图标可见
+                from main import ComputerUsageMonitor
+                if hasattr(ComputerUsageMonitor, 'tray_icon') and ComputerUsageMonitor.tray_icon:
+                    ComputerUsageMonitor.tray_icon.visible = True
                 self.root.withdraw()
-                log_manager.info("窗口已隐藏到系统托盘")
-                
             except Exception as e:
                 log_manager.error(f"隐藏到系统托盘失败: {e}")
                 import tkinter.messagebox as messagebox
-                messagebox.showwarning("警告", "无法隐藏到系统托盘，窗口将保持可见。\n如果看不到系统托盘图标，请尝试刷新系统托盘区域。")
+                messagebox.showwarning("警告", "无法隐藏到系统托盘，窗口将保持可见。")
         else:
             # 如果系统托盘不可用，提示用户并保持窗口可见
             import tkinter.messagebox as messagebox
@@ -471,14 +463,7 @@ class MonitorWindow:
         """显示窗口(如果被隐藏)"""
         if self.root:
             log_manager.info("显示主窗口")
-            # 先尝试更新窗口状态
-            self.root.update_idletasks()
-            # 显示窗口并将其置于最前面
             self.root.deiconify()
-            self.root.lift()
-            self.root.attributes('-topmost', True)
-            # 短暂置顶后恢复正常
-            self.root.after(100, lambda: self.root.attributes('-topmost', False))
 
     def _open_settings(self):
         """打开设置窗口"""

@@ -23,7 +23,6 @@
 4. **业务逻辑层**：实现提醒、统计等核心功能
 5. **表示层**：提供用户界面和可视化展示
 6. **配置管理层**：处理程序设置的读取和保存
-7. **日志管理层**：记录程序运行状态和用户行为
 
 ### 1.3 模块组织
 
@@ -36,8 +35,6 @@
 - **监控界面模块** (ui_monitor.py)：实时显示使用状态
 - **配置管理模块** (config_manager.py)：管理程序配置
 - **设置界面模块** (settings_ui.py)：提供配置的图形界面
-- **日志管理模块** (log_manager.py)：提供全局日志记录功能
-- **日志配置模块** (logger_config.py)：配置日志系统并提供logger实例
 
 ## 2. 核心功能模块详解
 
@@ -212,102 +209,6 @@ class SettingsWindow:
 - 提供重置为默认设置功能
 - 设置实时保存到配置文件
 
-### 2.8 日志管理系统 (log_manager.py & logger_config.py)
-
-日志管理系统由两个密切相关的模块组成，提供全面的日志记录功能。
-
-#### 2.8.1 日志配置模块 (logger_config.py)
-
-此模块负责配置日志系统并提供统一的日志实例获取方法。
-
-```python
-def setup_logging(debug_mode=False):
-    """设置日志系统，创建日志目录并配置格式"""
-    # 创建logs目录（如果不存在）
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
-    
-    # 获取当前日期作为日志文件名一部分
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    log_file = os.path.join('logs', f'usage_monitor_{current_date}.log')
-    
-    # 设置日志级别
-    log_level = logging.DEBUG if debug_mode else logging.INFO
-    
-    # 配置根日志记录器
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-
-def get_logger(name):
-    """获取指定名称的日志记录器"""
-    # 如果根记录器没有处理程序，先进行配置
-    if not logging.getLogger().handlers:
-        setup_logging()
-    
-    # 返回带有名称的日志记录器
-    return logging.getLogger(name)
-```
-
-**设计要点**：
-- 日志文件按日期分割，便于管理和查询
-- 同时输出到文件和控制台，方便开发和调试
-- 支持调试模式，可详细记录程序运行状态
-- 提供统一的logger获取方法，确保命名一致性
-
-#### 2.8.2 日志管理模块 (log_manager.py)
-
-此模块提供高级日志记录功能，封装常用的日志记录场景。
-
-```python
-# 全局日志记录器
-logger = None
-
-def setup_logger(debug_mode=False):
-    """设置日志记录器"""
-    global logger
-    # 使用logger_config模块获取logger
-    from logger_config import get_logger
-    logger = get_logger('monitor')
-    
-    # 日志路径
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    # 添加分隔线，标识新的日志会话
-    logger.info('=' * 42)
-    logger.info('电脑使用时间监控程序启动')
-    logger.info('日志级别: ' + ('调试模式' if debug_mode else '正常模式'))
-    
-    # 获取当前日期作为日志文件名的一部分
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    log_path = os.path.join(log_dir, f'usage_monitor_{current_date}.log')
-    logger.info(f'日志文件: {os.path.abspath(log_path)}')
-    logger.info('=' * 42)
-```
-
-**功能特点**：
-- 提供应用程序生命周期事件的专用日志方法
-- 记录系统信息，便于问题排查
-- 跟踪关键用户操作和程序状态变化
-- 使用分隔符和格式化输出增强日志可读性
-
-**核心日志事件**：
-- 应用启动和退出
-- 系统信息记录
-- 配置加载和保存
-- 通知发送
-- 报告生成
-- 错误和异常
-- 用户操作
-
 ## 3. 关键技术实现
 
 ### 3.1 多线程实现
@@ -353,83 +254,7 @@ plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False
 ```
 
-### 3.4 系统托盘集成
-
-程序通过系统托盘图标实现后台运行功能，为用户提供便捷的访问方式。
-
-```python
-def _create_tray_icon(self):
-    """创建系统托盘图标"""
-    try:
-        # 确保图标文件存在
-        if not self.icon_path or not os.path.exists(self.icon_path):
-            icon_path = "icon.ico" if os.path.exists("icon.ico") else None
-            if not icon_path:
-                logger.error("找不到图标文件，无法创建系统托盘图标")
-                return False
-        else:
-            icon_path = self.icon_path
-        
-        logger.info(f"正在创建系统托盘图标，使用图标: {icon_path}")
-        
-        # 加载图标
-        icon_image = Image.open(icon_path)
-        
-        # 创建菜单项
-        def show_window(icon, item):
-            self.show_window()
-        
-        def exit_app(icon, item):
-            self.quit_flag = True
-            icon.stop()
-            self.cleanup()
-        
-        # 创建菜单
-        menu = (
-            pystray.MenuItem("显示窗口", show_window),
-            pystray.MenuItem("退出", exit_app)
-        )
-        
-        # 创建图标
-        self.tray_icon = pystray.Icon(
-            "monitor",
-            icon_image,
-            "电脑使用时间监控",
-            menu
-        )
-```
-
-**实现特点**：
-1. **轻量级菜单**：系统托盘菜单提供两个基本选项 - "显示窗口"和"退出"
-2. **跨平台兼容**：使用pystray库实现，保证跨平台兼容性
-3. **独立线程运行**：托盘图标在独立线程中运行，避免阻塞主线程
-4. **容错设计**：对图标加载失败等异常情况进行处理，确保程序稳定运行
-5. **优雅退出**：通过托盘菜单退出时，会调用cleanup方法释放资源
-
-**窗口-托盘协作机制**：
-1. 当用户关闭主窗口时，程序不会直接退出，而是隐藏到系统托盘
-2. 用户可以通过点击托盘图标的"显示窗口"选项重新显示主界面
-3. 只有通过托盘菜单中的"退出"选项，程序才会完全退出
-
-这种设计保证了程序可以在后台持续监控用户活动，同时为用户提供了方便的访问入口，非常适合需要长时间运行的监控工具。
-
-### 3.5 跨Windows版本兼容性
-
-为确保在不同版本的Windows上正常运行：
-1. 使用Python 3.8作为基础环境
-2. 使用兼容不同版本的库版本
-3. 确保正确处理路径和文件访问权限
-4. 添加必要的Visual C++运行库依赖说明
-
-### 3.6 资源处理
-
-程序运行时会动态生成或访问以下资源：
-1. 数据库文件：存储使用记录
-2. 配置文件：存储用户设置
-3. 报告文件夹：存储生成的报表
-4. 日志文件：记录程序运行状态
-
-### 3.7 配置外部化
+### 3.4 配置外部化
 
 配置外部化通过JSON文件实现，主要优势：
 
@@ -445,78 +270,50 @@ def _create_tray_icon(self):
 
 ## 4. 打包与部署
 
-### 4.1 打包策略
+### 4.1 PyInstaller打包
 
-使用PyInstaller打包为可执行文件，主要配置如下：
+使用PyInstaller将Python程序打包成独立可执行文件：
 
 ```
-pyinstaller -D ^
+pyinstaller --onefile --noconsole ^
 --add-data "icon.ico;." ^
---add-data "config.json;." ^
 --hidden-import plyer.platforms ^
---hidden-import logger_config ^
---hidden-import log_manager ^
+--hidden-import plyer.platforms.win.notification ^
 --hidden-import matplotlib ^
 --hidden-import seaborn ^
---collect-all pystray ^
---collect-data PIL ^
---icon="icon.ico" ^
+--hidden-import numpy ^
+--hidden-import config_manager ^
+--hidden-import settings_ui ^
+--icon=icon.ico ^
 --name="电脑使用时间监控" ^
---windowed ^
 main.py
 ```
 
-**打包注意事项**：
-1. 使用--windowed参数避免控制台窗口
-2. 确保所有必要资源文件打包进发布版本
-3. 使用--hidden-import添加隐式导入模块
-4. 使用--collect-all确保第三方库完整打包
+### 4.2 针对Windows 7的兼容性处理
 
-### 4.2 目录结构规划
+为确保在Windows 7上正常运行：
+1. 使用Python 3.8作为基础环境
+2. 使用兼容Windows 7的库版本
+3. 确保正确处理路径和文件访问权限
+4. 添加必要的Visual C++运行库依赖说明
 
-打包后的目录结构：
+### 4.3 资源处理
 
-```
-电脑使用时间监控/
-|-- 电脑使用时间监控.exe   # 主程序
-|-- icon.ico              # 图标文件
-|-- config.json           # 配置文件
-|-- python3x.dll          # Python运行库
-|-- data/                 # 数据目录
-|   `-- usage_data.db     # 数据库文件
-|-- logs/                 # 日志目录
-|   `-- usage_monitor_*.log  # 日志文件
-|-- reports/              # 报告目录
-|   `-- *.html, *.png     # 生成的报告和图表
-`-- _internal/            # 打包库文件
-```
+程序运行时会动态生成或访问以下资源：
+1. 数据库文件：存储使用记录
+2. 配置文件：存储用户设置
+3. 报告文件夹：存储生成的报表
+4. 日志文件：记录程序运行状态
 
-### 4.3 版本管理
+## 5. 未来扩展方向
 
-程序采用语义化版本号，格式为X.Y.Z：
-- X：主版本号，不兼容的API变更
-- Y：次版本号，向下兼容的功能性新增
-- Z：修订号，向下兼容的问题修正
+1. **数据分析增强**：添加更多统计分析功能，如工作效率评估
+2. **休息建议**：提供针对性的休息建议和简单的放松运动指导
+3. **多设备同步**：支持多台电脑数据同步和汇总
+4. **定制化提醒规则**：允许用户设置更复杂的提醒规则
+5. **导出功能**：支持导出数据到Excel或CSV格式
+6. **更丰富的可视化**：添加更多类型的图表和交互式可视化
 
-当前版本：1.1.0
+## 6. 结语
 
-## 5. 未来发展计划
-
-### 5.1 功能增强
-
-1. **多屏幕支持**：监控多显示器使用情况
-2. **任务时间分配**：根据不同程序分析使用时间
-3. **自定义提醒计划**：允许设置不同时段的提醒策略
-4. **数据导出功能**：支持导出为CSV或Excel格式
-5. **多用户支持**：为不同用户提供独立的配置和记录
-
-### 5.2 技术改进
-
-1. **性能优化**：减少资源占用
-2. **同步备份**：支持配置和数据的云端备份
-3. **插件系统**：提供API允许开发者扩展功能
-4. **多语言支持**：添加英语等其他语言界面
-
-## 6. 总结
-
-电脑使用时间监控工具通过模块化设计、多线程处理和灵活配置实现了高效、低干扰的使用监控功能。系统通过精确的活动检测算法和人性化的提醒机制，帮助用户养成健康的电脑使用习惯，预防久坐带来的健康问题。 
+电脑使用时间监控工具采用模块化设计，将不同功能明确分离，使得代码结构清晰，便于维护和扩展。通过精确的活动监测、数据存储、统计分析和可视化展示，帮助用户了解自己的电脑使用习惯，预防久坐带来的健康问题。灵活的配置选项和友好的用户界面使其既适合普通用户使用，也能满足高级用户的定制需求。 

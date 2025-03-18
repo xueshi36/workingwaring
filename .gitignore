@@ -2040,3 +2040,13 @@ __pycache__/notification.cpython-310.pyc
 __pycache__/time_tracker.cpython-310.pyc
 __pycache__/ui_monitor.cpython-310.pyc
 __pycache__/visualization.cpython-310.pyc
+__pycache__/config.cpython-310.pyc
+__pycache__/db_manager.cpython-310.pyc
+__pycache__/notification.cpython-310.pyc
+__pycache__/time_tracker.cpython-310.pyc
+__pycache__/ui_monitor.cpython-310.pyc
+__pycache__/visualization.cpython-310.pyc
+reports/daily_report_2025-03-19.png
+reports/monthly_summary_2025-03-19.png
+reports/usage_report_2025-03-19.html
+reports/weekly_heatmap_2025-03-13_to_2025-03-19.png

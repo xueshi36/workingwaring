@@ -13,9 +13,6 @@ import atexit
 import webbrowser
 import os
 from datetime import datetime
-import ctypes
-import traceback
-# import pymsgbox
 
 import config
 import log_manager
@@ -24,7 +21,6 @@ from time_tracker import TimeTracker
 from notification import NotificationSystem
 from db_manager import DatabaseManager
 from visualization import UsageVisualizer
-from logger_config import get_logger
 
 # 版本信息
 VERSION = "1.1.0"
@@ -43,8 +39,6 @@ from ui_monitor import MonitorWindow, set_tray_available
 
 # 设置UI模块中的系统托盘状态
 set_tray_available(TRAY_AVAILABLE)
-
-logger = get_logger('main')
 
 class ComputerUsageMonitor:
     def __init__(self):
@@ -90,139 +84,147 @@ class ComputerUsageMonitor:
         
         # 系统托盘图标
         self.tray_icon = None
-        self.quit_flag = False
         
         # 注册退出处理
         atexit.register(self.cleanup)
         log_manager.info("系统初始化完成")
         
-        # 设置应用程序id，确保任务栏图标正确显示
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("com.monitor.workingtime")
-        except Exception as e:
-            logger.error(f"设置应用程序ID失败: {e}")
-        
-        # 加载图标文件
-        self.icon_path = self._get_icon_path()
-        logger.info(f"应用程序图标路径: {self.icon_path}")
-        
-        # 设置窗口图标
-        try:
-            self.monitor_window.root.iconbitmap(self.icon_path)
-        except Exception as e:
-            logger.error(f"设置窗口图标失败: {e}")
-        
-    def _get_icon_path(self):
-        """获取图标路径，优先使用当前目录下的icon.ico，如不存在则使用资源目录中的图标"""
-        # 首先检查当前目录
-        if os.path.exists("icon.ico"):
-            return os.path.abspath("icon.ico")
-        
-        # 检查打包后的资源目录
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-            icon_path = os.path.join(base_dir, "icon.ico")
-            if os.path.exists(icon_path):
-                return icon_path
-        
-        # 默认返回None，让tkinter使用默认图标
-        logger.warning("未找到图标文件，将使用默认图标")
-        return None
-    
     def start(self):
         """启动监控服务"""
-        # 声明全局变量必须在函数开头
-        global TRAY_AVAILABLE
-        
         log_manager.info("启动电脑使用时间监控服务...")
+        
+        # 先创建系统托盘图标
+        if TRAY_AVAILABLE:
+            log_manager.info("创建系统托盘图标")
+            tray_thread = threading.Thread(target=self._create_tray_icon)
+            tray_thread.daemon = True
+            tray_thread.start()
+            # 等待托盘图标创建完成
+            time.sleep(0.5)
         
         # 启动时间跟踪器
         self.time_tracker.start()
-        
-        # 先创建系统托盘图标（在UI显示前）
-        if TRAY_AVAILABLE:
-            try:
-                log_manager.info("创建系统托盘图标")
-                # 直接在主线程创建托盘图标
-                self._create_tray_icon()
-                # 给系统托盘图标一些时间初始化
-                time.sleep(0.5)
-            except Exception as e:
-                log_manager.error(f"创建系统托盘图标失败: {e}")
-                # 在异常处理中修改全局变量
-                TRAY_AVAILABLE = False
-                set_tray_available(False)
-        else:
-            log_manager.warning("系统托盘不可用，窗口关闭时程序将退出")
         
         # 启动监视器窗口
         self.monitor_window.start()
         
     def _create_tray_icon(self):
-        """创建系统托盘图标"""
+        """创建系统托盘图标和菜单"""
+        # 创建一个简单的图标
+        image = self._create_icon_image()
+        
+        # 定义托盘菜单
+        menu_items = [
+            pystray.MenuItem("显示主窗口", self._show_main_window),
+            pystray.MenuItem("显示使用统计", self._show_usage_stats),
+            pystray.MenuItem("查看统计报告", self._show_usage_report),
+            pystray.MenuItem("设置", self._open_settings),
+            pystray.MenuItem("重置计时器", self._reset_timer),
+            pystray.MenuItem("退出", self._exit_app)
+        ]
+        
+        # 创建托盘图标
+        self.tray_icon = pystray.Icon(
+            name=config.APP_NAME,
+            icon=image,
+            title=config.TRAY_TOOLTIP,
+            menu=pystray.Menu(*menu_items)
+        )
+        
+        # 启动托盘图标（会阻塞当前线程）
+        self.tray_icon.run()
+        
+    def _create_icon_image(self):
+        """创建一个简单的图标图像"""
         try:
-            # 确保图标文件存在
-            if not self.icon_path or not os.path.exists(self.icon_path):
-                icon_path = "icon.ico" if os.path.exists("icon.ico") else None
-                if not icon_path:
-                    logger.error("找不到图标文件，无法创建系统托盘图标")
-                    return False
-            else:
-                icon_path = self.icon_path
-            
-            logger.info(f"正在创建系统托盘图标，使用图标: {icon_path}")
-            
-            # 加载图标
-            icon_image = Image.open(icon_path)
-            
-            # 创建菜单项
-            def show_window(icon, item):
-                self.show_window()
-            
-            def exit_app(icon, item):
-                self.quit_flag = True
-                icon.stop()
-                self.cleanup()
-            
-            # 创建菜单
-            menu = (
-                pystray.MenuItem("显示窗口", show_window),
-                pystray.MenuItem("退出", exit_app)
-            )
-            
-            # 创建图标
-            self.tray_icon = pystray.Icon(
-                "monitor",
-                icon_image,
-                "电脑使用时间监控",
-                menu
-            )
-            
-            # 设置图标的安装回调函数，确保图标可见
-            def setup(icon):
-                icon.visible = True
-                logger.info("系统托盘图标已成功创建并显示")
-            
-            self.tray_icon.setup = setup
-            
-            # 运行图标（在新线程中）
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
-            
-            # 等待图标显示
-            time.sleep(0.5)
-            
-            logger.info("系统托盘图标创建完成")
-            return True
+            # 首先尝试加载外部图标文件
+            icon_path = "icon.ico"
+            if os.path.exists(icon_path):
+                return Image.open(icon_path)
         except Exception as e:
-            logger.error(f"创建系统托盘图标失败: {e}")
-            logger.error(traceback.format_exc())
-            return False
+            log_manager.warning(f"加载图标文件失败: {e}，将使用默认图标")
+        
+        # 创建默认图标
+        width = 64
+        height = 64
+        color1 = (0, 128, 255)
+        color2 = (255, 255, 255)
+        
+        image = Image.new('RGB', (width, height), color2)
+        dc = ImageDraw.Draw(image)
+        
+        # 绘制一个简单的图标
+        dc.rectangle([10, 10, width-10, height-10], fill=color1)
+        
+        return image
     
-    def show_window(self):
-        """显示窗口"""
-        logger.info("显示主窗口")
+    def _show_main_window(self, icon, item):
+        """显示主窗口"""
+        log_manager.info("用户请求：显示主窗口")
+        # 确保托盘图标保持可见
+        icon.visible = True
         self.monitor_window.show()
-    
+        
+    def _show_usage_stats(self, icon, item):
+        """显示使用统计信息"""
+        log_manager.info("用户请求：显示使用统计")
+        stats = self.time_tracker.get_usage_stats()
+        message = (
+            f"连续使用时间: {stats['continuous_usage_minutes']}分钟\n"
+            f"今日总使用时间: {stats['daily_usage_minutes']}分钟"
+        )
+        self.notification_system.send_notification("使用统计", message)
+        
+    def _show_usage_report(self, icon, item):
+        """生成并显示使用统计报告"""
+        log_manager.info("用户请求：生成并显示使用统计报告")
+        # 通知用户正在生成报告
+        self.notification_system.send_notification(
+            "正在生成报告", 
+            "正在生成使用统计报告，请稍候..."
+        )
+        
+        try:
+            # 生成HTML报告
+            report_path = self.visualizer.generate_usage_stats_html()
+            
+            # 在浏览器中打开报告
+            webbrowser.open(f"file://{os.path.abspath(report_path)}")
+            
+            log_manager.log_report_generation(report_path)
+        except Exception as e:
+            # 生成报告失败时通知用户
+            error_msg = f"无法生成统计报告: {e}"
+            self.notification_system.send_notification(
+                "生成报告失败", 
+                error_msg
+            )
+            log_manager.error_detail("报告生成", error_msg)
+        
+    def _reset_timer(self, icon, item):
+        """重置计时器"""
+        log_manager.info("用户请求：重置计时器")
+        self.time_tracker.reset()
+        self.notification_system.send_notification("计时器已重置", "连续使用时间已重置为0")
+        log_manager.log_activity_reset("用户手动重置")
+        
+    def _exit_app(self, icon, item):
+        """退出应用"""
+        log_manager.info("用户请求：退出应用")
+        # 确保正确停止托盘图标
+        icon.stop()
+        self.cleanup()
+        sys.exit(0)
+        
+    def _open_settings(self, icon, item):
+        """打开设置窗口"""
+        log_manager.info("用户请求：打开设置窗口")
+        # 显示主窗口
+        self.monitor_window.show()
+        
+        # 打开设置
+        self.monitor_window._open_settings()
+        
     def cleanup(self):
         """清理资源并退出"""
         log_manager.info("正在关闭电脑使用时间监控工具...")
@@ -281,10 +283,4 @@ if __name__ == "__main__":
         webbrowser.open(f"file://{os.path.abspath(report_path)}")
     else:
         # 否则正常启动监控
-        monitor.start()
-
-    # 设置DPI感知，确保界面在高分辨率屏幕上正常显示
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
-        pass 
+        monitor.start() 

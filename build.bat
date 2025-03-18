@@ -1,7 +1,7 @@
 @echo off
 echo ========================================
-echo 电脑使用时间监控工具打包脚本 v1.3.2
-echo 添加logger_config模块支持并优化导入
+echo 电脑使用时间监控工具打包脚本 v1.2.1
+echo 修复了报告功能在打包版本中的显示问题
 echo ========================================
 echo.
 
@@ -21,34 +21,6 @@ if %errorlevel% neq 0 (
         echo [错误] PyInstaller安装失败，请手动安装后重试。
         exit /b 1
     )
-)
-
-REM 检查必要的依赖库
-echo [提示] 检查必要的依赖库...
-python -c "import pystray, PIL" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [提示] 缺少必要的依赖库，正在安装...
-    pip install pystray pillow
-    if %errorlevel% neq 0 (
-        echo [警告] 依赖库安装失败，系统托盘功能可能无法正常工作。
-    ) else (
-        echo [提示] 依赖库安装成功。
-    )
-)
-
-REM 确保logger_config.py存在
-if not exist "logger_config.py" (
-    echo [错误] 找不到logger_config.py文件，打包将失败。
-    exit /b 1
-)
-
-REM 创建系统托盘图标
-echo [提示] 创建系统托盘图标...
-python create_icon.py "icon.ico"
-if %errorlevel% neq 0 (
-    echo [警告] 创建图标失败，将使用默认图标
-) else (
-    echo [提示] 系统托盘图标创建成功
 )
 
 REM 创建输出目录
@@ -82,7 +54,6 @@ REM 执行PyInstaller打包命令
 pyinstaller -D ^
 --add-data "D:\工作文件\usage_data.db;data"  ^
 --add-data "D:\工作文件\icon.ico;." ^
---add-data "D:\工作文件\icon.png;." ^
 --add-data "D:\工作文件\config.json;." ^
 --hidden-import plyer.platforms ^
 --hidden-import plyer.platforms.win.notification ^
@@ -94,18 +65,11 @@ pyinstaller -D ^
 --hidden-import pymsgbox ^
 --hidden-import config_manager ^
 --hidden-import settings_ui ^
---hidden-import logger_config ^
---hidden-import log_manager ^
 --hidden-import tkinter ^
 --hidden-import tkinter.ttk ^
 --hidden-import sqlite3 ^
 --hidden-import PIL ^
 --hidden-import PIL._tkinter_finder ^
---hidden-import PIL.Image ^
---hidden-import PIL.ImageDraw ^
---hidden-import pystray ^
---hidden-import pystray._win32 ^
---hidden-import pystray._base ^
 --hidden-import six ^
 --hidden-import packaging ^
 --hidden-import packaging.version ^
@@ -116,12 +80,9 @@ pyinstaller -D ^
 --hidden-import threading ^
 --hidden-import datetime ^
 --hidden-import ctypes ^
---collect-all pystray ^
---collect-data PIL ^
 --distpath %DIST_PATH% ^
 --icon="D:\工作文件\icon.ico" ^
 --name="电脑使用时间监控" ^
---windowed ^
 main.py
 
 if %errorlevel% neq 0 (

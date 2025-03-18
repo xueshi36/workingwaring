@@ -187,7 +187,3 @@ pyinstaller -D ^
 --distpath D:\共享\workingwaring\ D:\工作文件\main.py 
 
 
-
-
-
-PyInstaller -D --add-data "D:\工作文件\usage_data.db;data" --add-data "D:\工作文件\icon.ico;." --add-data "D:\工作文件\icon.png;." --add-data "D:\工作文件\config.json;." --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification --hidden-import matplotlib --hidden-import seaborn --hidden-import numpy --hidden-import pandas --hidden-import pynput --hidden-import pymsgbox --hidden-import config_manager --hidden-import settings_ui --hidden-import logger_config --hidden-import log_manager --hidden-import tkinter --hidden-import tkinter.ttk --hidden-import sqlite3 --hidden-import PIL --hidden-import PIL._tkinter_finder --hidden-import PIL.Image --hidden-import PIL.ImageDraw --hidden-import pystray --hidden-import pystray._win32 --hidden-import pystray._base --hidden-import six --hidden-import packaging --hidden-import packaging.version --hidden-import packaging.specifiers --hidden-import tempfile --hidden-import subprocess --hidden-import webbrowser --hidden-import threading --hidden-import datetime --hidden-import ctypes --collect-all pystray --collect-data PIL --distpath "D:\共享\workingwaring" --icon="D:\工作文件\icon.ico" --name="电脑使用时间监控" --windowed D:\工作文件\main.py
