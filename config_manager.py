@@ -15,9 +15,13 @@ DEFAULT_CONFIG = {
     "ACTIVITY_CHECK_INTERVAL": 1,
     "CONTINUOUS_USAGE_ALERT": 60,
     "INACTIVITY_RESET": 10,
+    "CONTINUOUS_NOTIFICATION_INTERVAL": 3,  # 连续通知间隔（分钟）
+    "ENABLE_CONTINUOUS_NOTIFICATION": True,  # 是否启用连续通知
     "APP_NAME": "电脑使用时间监控工具",
     "NOTIFICATION_TITLE": "休息提醒",
     "NOTIFICATION_MESSAGE": "您已连续使用电脑{}分钟，建议休息一下眼睛和身体！",
+    "CONTINUOUS_NOTIFICATION_TITLE": "持续工作提醒",  # 连续通知的标题
+    "CONTINUOUS_NOTIFICATION_MESSAGE": "您已连续工作{}分钟，建议适当休息。休息{}分钟后将停止提醒。",  # 连续通知的内容
     "DATABASE_PATH": "usage_data.db",
     "REPORTS_DIR": "reports",
     "REPORT_DAYS": 30,

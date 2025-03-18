@@ -87,6 +87,21 @@ class SettingsWindow:
         )
         
         # ==== 通知设置标签页 ====
+        # 启用连续通知
+        self._add_checkbox_setting(
+            notify_tab,
+            "启用连续通知提醒",
+            "ENABLE_CONTINUOUS_NOTIFICATION"
+        )
+        
+        # 连续通知间隔
+        self._add_number_setting(
+            notify_tab, 
+            "连续通知间隔(分钟):", 
+            "CONTINUOUS_NOTIFICATION_INTERVAL",
+            1, 15, 1
+        )
+        
         # 应用名称
         self._add_text_setting(
             notify_tab,
@@ -106,6 +121,21 @@ class SettingsWindow:
             notify_tab,
             "通知消息:",
             "NOTIFICATION_MESSAGE",
+            is_multiline=True
+        )
+        
+        # 连续通知标题
+        self._add_text_setting(
+            notify_tab,
+            "连续通知标题:",
+            "CONTINUOUS_NOTIFICATION_TITLE"
+        )
+        
+        # 连续通知消息
+        self._add_text_setting(
+            notify_tab,
+            "连续通知消息:",
+            "CONTINUOUS_NOTIFICATION_MESSAGE",
             is_multiline=True
         )
         

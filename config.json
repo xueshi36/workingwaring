@@ -1,7 +1,7 @@
 {
     "activity_check_interval": 1,
-    "continuous_usage_alert": 60,
-    "inactivity_reset": 10,
+    "continuous_usage_alert": 5,
+    "inactivity_reset": 2,
     "app_name": "电脑使用时间监控工具",
     "notification_title": "休息提醒",
     "notification_message": "您已连续使用电脑{}分钟，建议休息一下眼睛和身体！",

@@ -11,10 +11,16 @@ ACTIVITY_CHECK_INTERVAL = config_manager.get("ACTIVITY_CHECK_INTERVAL", 1)
 CONTINUOUS_USAGE_ALERT = config_manager.get("CONTINUOUS_USAGE_ALERT", 60)  
 INACTIVITY_RESET = config_manager.get("INACTIVITY_RESET", 10)  
 
+# 连续通知设置
+CONTINUOUS_NOTIFICATION_INTERVAL = config_manager.get("CONTINUOUS_NOTIFICATION_INTERVAL", 3)
+ENABLE_CONTINUOUS_NOTIFICATION = config_manager.get("ENABLE_CONTINUOUS_NOTIFICATION", True)
+
 # 用户界面设置
 APP_NAME = config_manager.get("APP_NAME", "电脑使用时间监控工具")
 NOTIFICATION_TITLE = config_manager.get("NOTIFICATION_TITLE", "休息提醒")
 NOTIFICATION_MESSAGE = config_manager.get("NOTIFICATION_MESSAGE", "您已连续使用电脑{}分钟，建议休息一下眼睛和身体！")
+CONTINUOUS_NOTIFICATION_TITLE = config_manager.get("CONTINUOUS_NOTIFICATION_TITLE", "持续工作提醒")
+CONTINUOUS_NOTIFICATION_MESSAGE = config_manager.get("CONTINUOUS_NOTIFICATION_MESSAGE", "您已连续工作{}分钟，建议适当休息。休息{}分钟后将停止提醒。")
 
 # 数据和报告设置
 DATABASE_PATH = config_manager.get("DATABASE_PATH", "usage_data.db")
@@ -55,12 +61,12 @@ def save_config(key, value):
         
     return result
 
-# 重新加载配置
+# 重新加载配置文件
 def reload_config():
-    """重新加载配置文件"""
+    """重新加载配置文件，并更新本模块的变量"""
     config_manager.load_config()
     
-    # 更新本模块中的所有变量
+    # 更新模块变量
     for key in DEFAULT_CONFIG.keys():
         if key in globals():
             globals()[key] = config_manager.get(key)
