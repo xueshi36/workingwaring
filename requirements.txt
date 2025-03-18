@@ -9,5 +9,4 @@ pymsgbox==1.0.9
 plyer==1.4.3
 six==1.14.0
 packaging==20.9
-pyparsing==2.4.7
-win10toast==0.9 
+pyparsing==2.4.7 

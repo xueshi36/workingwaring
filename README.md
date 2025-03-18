@@ -46,6 +46,53 @@
 5. 达到连续使用时间阈值后，每隔设定的时间（默认3分钟）会继续发送提醒，直到休息足够时间
 6. 10分钟无活动会自动重置计时器
 
+### 系统提醒记时逻辑
+
+系统采用两级提醒机制，确保用户能够适时休息：
+
+1. **主要提醒触发** (`CONTINUOUS_USAGE_ALERT`)
+   - 当连续使用时间达到配置的`CONTINUOUS_USAGE_ALERT`值（例如设置为5分钟）的倍数时触发
+   - 例如：设置为5分钟时，将在连续使用5、10、15、20等分钟时触发提醒
+   - 这个值设置较大（如5分钟而非3分钟）是为了避免过于频繁打扰用户的正常工作
+
+2. **连续通知机制** (`CONTINUOUS_NOTIFICATION_INTERVAL`)
+   - 在首次达到`CONTINUOUS_USAGE_ALERT`阈值后启用连续通知功能
+   - 启用后，每隔`CONTINUOUS_NOTIFICATION_INTERVAL`分钟（默认3分钟）发送一次提醒
+   - 直到用户休息足够长时间（达到`INACTIVITY_RESET`，默认10分钟）才会停止
+
+3. **重置机制**
+   - 当用户连续不活动达到`INACTIVITY_RESET`时间（默认10分钟）时
+   - 系统会重置连续使用时间计数器和连续通知状态
+   - 用户下次活动将重新开始计时
+
+**核心代码实现**：
+```python
+# 检查是否需要发送提醒
+if (self.continuous_usage_minutes > 0 and 
+    self.continuous_usage_minutes % config.CONTINUOUS_USAGE_ALERT == 0):
+    self._send_usage_alert()
+    # 第一次达到阈值时，启用连续通知（如果配置允许）
+    if (config.ENABLE_CONTINUOUS_NOTIFICATION and 
+        not self.continuous_notification_active and 
+        self.continuous_usage_minutes == config.CONTINUOUS_USAGE_ALERT):
+        self.continuous_notification_active = True
+        self.last_notification_time = self.continuous_usage_minutes
+        log_manager.info("已启用连续通知功能")
+
+# 检查是否需要发送连续通知
+elif (self.continuous_notification_active and 
+     (self.continuous_usage_minutes - self.last_notification_time) >= config.CONTINUOUS_NOTIFICATION_INTERVAL):
+    self._send_continuous_notification()
+    self.last_notification_time = self.continuous_usage_minutes
+```
+
+**为什么设置为5分钟而非3分钟？**
+
+设置`CONTINUOUS_USAGE_ALERT`为5分钟而非3分钟是权衡用户体验与健康提醒的结果：
+- 5分钟的间隔足够提醒用户注意休息，但不会过于频繁打扰工作
+- 主要提醒间隔较长（5分钟），而连续通知间隔较短（3分钟），形成递进式提醒机制
+- 这种设计既能确保用户收到及时提醒，又不会因过于频繁的打扰而导致用户关闭提醒功能
+
 ### 查看统计报告
 
 有多种方式查看使用统计报告：
@@ -97,7 +144,7 @@
 
 - 本程序使用Python编写
 - 使用PyInstaller打包成独立执行文件
-- 主要依赖：pynput, matplotlib, sqlite3, tkinter, win10toast
+- 主要依赖：pynput, matplotlib, sqlite3, tkinter, plyer
 
 ## 隐私说明
 
@@ -105,6 +152,38 @@
 
 ## 许可协议
 
-MIT License 
+MIT License
 
-pyinstaller -D  --add-data "D:\工作文件\usage_data.db;data"  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification --hidden-import matplotlib --hidden-import seaborn --hidden-import numpy --hidden-import pandas --hidden-import pynput --hidden-import pymsgbox --hidden-import config_manager --hidden-import settings_ui --hidden-import tkinter --hidden-import tkinter.ttk --hidden-import sqlite3 --hidden-import PIL --hidden-import PIL._tkinter_finder --hidden-import six --hidden-import packaging --hidden-import packaging.version --hidden-import packaging.specifiers  --hidden-import plyer.platforms --hidden-import plyer.platforms.win.notification  --distpath D:\共享\workingwaring\ D:\工作文件\main.py
+
+pyinstaller -D ^
+--add-data "D:\工作文件\usage_data.db;data"  ^
+--add-data "D:\工作文件\config.json;." ^
+--hidden-import plyer.platforms ^
+--hidden-import plyer.platforms.win.notification ^
+--hidden-import matplotlib ^
+--hidden-import seaborn ^
+--hidden-import numpy ^
+--hidden-import pandas ^
+--hidden-import pynput ^
+--hidden-import pymsgbox ^
+--hidden-import config_manager ^
+--hidden-import settings_ui ^
+--hidden-import tkinter ^
+--hidden-import tkinter.ttk ^
+--hidden-import sqlite3 ^
+--hidden-import PIL ^
+--hidden-import PIL._tkinter_finder ^
+--hidden-import six ^
+--hidden-import packaging ^
+--hidden-import packaging.version ^
+--hidden-import packaging.specifiers ^
+--hidden-import tempfile ^
+--hidden-import subprocess ^
+--hidden-import webbrowser ^
+--hidden-import threading ^
+--hidden-import datetime ^
+--hidden-import ctypes ^
+--name="电脑使用时间监控" ^
+--distpath D:\共享\workingwaring\ D:\工作文件\main.py 
+
+

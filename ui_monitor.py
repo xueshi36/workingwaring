@@ -9,6 +9,7 @@ import time
 import os
 from datetime import datetime, timedelta
 import log_manager
+import config
 
 class MonitorWindow:
     def __init__(self, time_tracker, visualizer):
@@ -38,7 +39,7 @@ class MonitorWindow:
         # 创建主窗口
         self.root = tk.Tk()
         self.root.title("电脑使用时间监控")
-        self.root.geometry("400x300")
+        self.root.geometry("430x430")  # 增加窗口高度以容纳新内容
         self.root.resizable(False, False)
         
         # 设置窗口图标
@@ -57,6 +58,7 @@ class MonitorWindow:
         style.configure("Warning.TLabel", font=("微软雅黑", 12), foreground="red")
         style.configure("Header.TLabel", font=("微软雅黑", 10, "bold"))
         style.configure("Data.TLabel", font=("微软雅黑", 10))
+        style.configure("Config.TLabel", font=("微软雅黑", 9), foreground="#555555")
         
         # 主框架
         main_frame = ttk.Frame(self.root, padding=20)
@@ -98,6 +100,37 @@ class MonitorWindow:
         self.alert_label = ttk.Label(status_frame, text="", style="Warning.TLabel")
         self.alert_label.pack(fill=tk.X, pady=(10, 0))
         
+        # 当前配置框架
+        config_frame = ttk.LabelFrame(main_frame, text="当前配置", padding=10)
+        config_frame.pack(fill=tk.X, pady=5)
+        
+        # 活动检查间隔
+        check_interval_frame = ttk.Frame(config_frame)
+        check_interval_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(check_interval_frame, text="活动检查间隔:", style="Config.TLabel").pack(side=tk.LEFT)
+        self.check_interval_label = ttk.Label(check_interval_frame, 
+                                     text=f"每{config.ACTIVITY_CHECK_INTERVAL}分钟检查一次活动状态", 
+                                     style="Config.TLabel")
+        self.check_interval_label.pack(side=tk.RIGHT)
+        
+        # 连续使用提醒
+        usage_alert_frame = ttk.Frame(config_frame)
+        usage_alert_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(usage_alert_frame, text="连续使用提醒:", style="Config.TLabel").pack(side=tk.LEFT)
+        self.usage_alert_label = ttk.Label(usage_alert_frame, 
+                                 text=f"连续使用{config.CONTINUOUS_USAGE_ALERT}分钟后提醒", 
+                                 style="Config.TLabel")
+        self.usage_alert_label.pack(side=tk.RIGHT)
+        
+        # 无活动重置
+        inactivity_frame = ttk.Frame(config_frame)
+        inactivity_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(inactivity_frame, text="无活动重置:", style="Config.TLabel").pack(side=tk.LEFT)
+        self.inactivity_label = ttk.Label(inactivity_frame, 
+                               text=f"无活动{config.INACTIVITY_RESET}分钟后重置计时器", 
+                               style="Config.TLabel")
+        self.inactivity_label.pack(side=tk.RIGHT)
+        
         # 报告框架
         report_frame = ttk.LabelFrame(main_frame, text="报告", padding=10)
         report_frame.pack(fill=tk.X, pady=10)
@@ -109,6 +142,24 @@ class MonitorWindow:
         ttk.Label(next_report_frame, text="下次自动报告:", style="Header.TLabel").pack(side=tk.LEFT)
         self.next_report_label = ttk.Label(next_report_frame, text="计算中...", style="Data.TLabel")
         self.next_report_label.pack(side=tk.RIGHT)
+        
+        # 最新报告信息
+        last_report_frame = ttk.Frame(report_frame)
+        last_report_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(last_report_frame, text="最新报告:", style="Header.TLabel").pack(side=tk.LEFT)
+        self.last_report_label = ttk.Label(last_report_frame, text="暂无报告", style="Data.TLabel")
+        self.last_report_label.pack(side=tk.RIGHT)
+        
+        # 报告存储位置
+        report_path_frame = ttk.Frame(report_frame)
+        report_path_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(report_path_frame, text="存储位置:", style="Header.TLabel").pack(side=tk.LEFT)
+        self.report_path_label = ttk.Label(report_path_frame, 
+                                 text=os.path.abspath(config.REPORTS_DIR), 
+                                 style="Data.TLabel")
+        self.report_path_label.pack(side=tk.RIGHT)
         
         # 报告按钮
         button_frame = ttk.Frame(report_frame)
@@ -205,6 +256,11 @@ class MonitorWindow:
                 activity_text = f"{int(idle_time // 3600)}小时前"
             self.activity_label.config(text=activity_text)
             
+            # 更新配置显示
+            self.check_interval_label.config(text=f"每{config.ACTIVITY_CHECK_INTERVAL}分钟检查一次活动状态")
+            self.usage_alert_label.config(text=f"连续使用{config.CONTINUOUS_USAGE_ALERT}分钟后提醒")
+            self.inactivity_label.config(text=f"无活动{config.INACTIVITY_RESET}分钟后重置计时器")
+            
             # 更新提醒信息
             if continuous_mins >= 55 and continuous_mins < 60:
                 self.alert_label.config(text=f"即将达到1小时连续使用，请准备休息")
@@ -220,6 +276,27 @@ class MonitorWindow:
                 time_left = self.next_report_time - datetime.now()
                 mins_left = max(0, int(time_left.total_seconds() // 60))
                 self.next_report_label.config(text=f"{self.next_report_time.strftime('%H:%M')} (还剩{mins_left}分钟)")
+            
+            # 更新最新报告信息
+            try:
+                report_dir = config.REPORTS_DIR
+                if os.path.exists(report_dir):
+                    report_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
+                    if report_files:
+                        # 按修改时间排序，获取最新报告
+                        latest_report = sorted(report_files, 
+                                               key=lambda x: os.path.getmtime(os.path.join(report_dir, x)), 
+                                               reverse=True)[0]
+                        mod_time = datetime.fromtimestamp(os.path.getmtime(os.path.join(report_dir, latest_report)))
+                        self.last_report_label.config(text=f"{latest_report} ({mod_time.strftime('%m-%d %H:%M')})")
+                    else:
+                        self.last_report_label.config(text="暂无报告")
+                else:
+                    self.last_report_label.config(text="报告目录不存在")
+            except Exception as e:
+                log_manager.error(f"更新报告信息失败: {e}")
+                self.last_report_label.config(text="报告信息获取失败")
+            
         except Exception as e:
             log_manager.error(f"更新UI数据时出错: {e}")
             
@@ -238,6 +315,13 @@ class MonitorWindow:
             
             # 更新UI显示
             self.alert_label.config(text=f"报告已生成: {os.path.basename(report_path)}")
+            
+            # 同时更新报告显示
+            if os.path.exists(report_path):
+                mod_time = datetime.fromtimestamp(os.path.getmtime(report_path))
+                self.last_report_label.config(
+                    text=f"{os.path.basename(report_path)} ({mod_time.strftime('%m-%d %H:%M')})"
+                )
         except Exception as e:
             log_manager.error_detail("报告生成", f"生成报告失败: {e}")
             self.alert_label.config(text=f"生成报告失败: {e}")
@@ -246,13 +330,40 @@ class MonitorWindow:
         """查看最新报告"""
         try:
             log_manager.info("用户请求查看最新报告")
-            # 生成新报告
-            report_path = self.visualizer.generate_usage_stats_html()
+            
+            # 检查是否存在报告
+            report_dir = config.REPORTS_DIR
+            if os.path.exists(report_dir):
+                report_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
+                if not report_files:
+                    # 没有现有报告，生成一个新的
+                    log_manager.info("没有找到现有报告，生成新报告")
+                    report_path = self.visualizer.generate_usage_stats_html()
+                else:
+                    # 找到最新的报告
+                    latest_report = sorted(report_files, 
+                                          key=lambda x: os.path.getmtime(os.path.join(report_dir, x)), 
+                                          reverse=True)[0]
+                    report_path = os.path.join(report_dir, latest_report)
+                    log_manager.info(f"找到最新报告: {report_path}")
+            else:
+                # 报告目录不存在，创建并生成新报告
+                os.makedirs(report_dir, exist_ok=True)
+                log_manager.info(f"创建报告目录: {report_dir}")
+                report_path = self.visualizer.generate_usage_stats_html()
             
             # 在浏览器中打开
             import webbrowser
             webbrowser.open(f"file://{os.path.abspath(report_path)}")
             log_manager.info(f"已在浏览器中打开报告: {report_path}")
+            
+            # 更新UI显示
+            if os.path.exists(report_path):
+                mod_time = datetime.fromtimestamp(os.path.getmtime(report_path))
+                self.last_report_label.config(
+                    text=f"{os.path.basename(report_path)} ({mod_time.strftime('%m-%d %H:%M')})"
+                )
+                
         except Exception as e:
             log_manager.error_detail("报告查看", f"查看报告失败: {e}")
             self.alert_label.config(text=f"查看报告失败: {e}")
@@ -288,6 +399,12 @@ class MonitorWindow:
             settings_window = SettingsWindow(self.root)
             settings_window.run()
             log_manager.info("设置窗口已关闭")
+            
+            # 刷新UI显示的配置
+            self.check_interval_label.config(text=f"每{config.ACTIVITY_CHECK_INTERVAL}分钟检查一次活动状态")
+            self.usage_alert_label.config(text=f"连续使用{config.CONTINUOUS_USAGE_ALERT}分钟后提醒")
+            self.inactivity_label.config(text=f"无活动{config.INACTIVITY_RESET}分钟后重置计时器")
+            
         except Exception as e:
             log_manager.error_detail("设置窗口", f"打开设置窗口失败: {e}")
             self.alert_label.config(text=f"打开设置窗口失败: {e}") 

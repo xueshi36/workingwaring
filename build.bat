@@ -1,67 +1,53 @@
 @echo off
-echo 正在打包电脑使用时间监控工具，请稍候...
-
-:: 设置Python 3.6的虚拟环境
-echo 检查虚拟环境...
-if not exist "venv" (
-    echo 创建Python 3.6虚拟环境...
-    :: 先检查是否安装了virtualenv
-    pip show virtualenv > nul 2>&1
-    if %ERRORLEVEL% NEQ 0 (
-        echo 正在安装virtualenv...
-        pip install virtualenv
-        if %ERRORLEVEL% NEQ 0 (
-            echo virtualenv安装失败，请检查网络连接或手动安装。
-            exit /b 1
-        )
-    )
-    
-    :: 使用virtualenv创建环境，支持老版本Python
-    virtualenv venv
-    if %ERRORLEVEL% NEQ 0 (
-        echo 创建虚拟环境失败，请确保已安装Python 3.6
-        exit /b 1
-    )
-)
-
-:: 激活虚拟环境
-call venv\Scripts\activate
-if %ERRORLEVEL% NEQ 0 (
-    echo 激活虚拟环境失败，请检查venv目录是否正确
-    exit /b 1
-)
-
-:: 检查Python版本
-python --version
+echo ========================================
+echo 电脑使用时间监控工具打包脚本
+echo ========================================
 echo.
 
-:: 检查是否安装了PyInstaller
-pip show pyinstaller > nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo PyInstaller未安装，正在安装...
-    pip install pyinstaller==3.6
-    if %ERRORLEVEL% NEQ 0 (
-        echo PyInstaller安装失败，请检查网络连接或手动安装。
+REM 检查Python是否安装
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [错误] 未找到Python，请确保已安装Python并添加到PATH中。
+    exit /b 1
+)
+
+REM 检查PyInstaller是否安装
+python -c "import PyInstaller" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 未安装PyInstaller，正在安装...
+    pip install pyinstaller
+    if %errorlevel% neq 0 (
+        echo [错误] PyInstaller安装失败，请手动安装后重试。
         exit /b 1
     )
 )
 
-:: 确保所有依赖已安装
-echo 正在检查并安装依赖...
-pip install -r requirements.txt
-if %ERRORLEVEL% NEQ 0 (
-    echo 依赖安装失败，请检查网络连接或手动安装依赖。
-    exit /b 1
+REM 创建输出目录
+set DIST_PATH=D:\共享\workingwaring\
+if not exist "%DIST_PATH%" (
+    mkdir "%DIST_PATH%"
+    echo [提示] 已创建输出目录：%DIST_PATH%
 )
 
-:: 清理旧的build和dist目录
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+REM 清理旧文件
+echo [提示] 清理旧的构建文件...
+rmdir /s /q build >nul 2>&1
+rmdir /s /q dist >nul 2>&1
 
-:: 打包程序 - 使用特定的设置以兼容Windows 7
-echo 正在打包程序...
-pyinstaller --onefile --noconsole ^
---add-data "icon.ico;." ^
+REM 确保reports目录存在
+if not exist "reports" (
+    mkdir "reports"
+    echo [提示] 已创建reports目录
+)
+
+echo [提示] 开始打包应用程序...
+echo [提示] 这可能需要几分钟时间，请耐心等待...
+
+REM 执行PyInstaller打包命令
+pyinstaller -D ^
+--add-data "D:\工作文件\usage_data.db;data"  ^
+--add-data "D:\工作文件\icon.ico;." ^
+--add-data "D:\工作文件\config.json;." ^
 --hidden-import plyer.platforms ^
 --hidden-import plyer.platforms.win.notification ^
 --hidden-import matplotlib ^
@@ -81,56 +67,52 @@ pyinstaller --onefile --noconsole ^
 --hidden-import packaging ^
 --hidden-import packaging.version ^
 --hidden-import packaging.specifiers ^
---icon=icon.ico ^
+--hidden-import tempfile ^
+--hidden-import subprocess ^
+--hidden-import webbrowser ^
+--hidden-import threading ^
+--hidden-import datetime ^
+--hidden-import ctypes ^
+--distpath %DIST_PATH% ^
+--icon="D:\工作文件\icon.ico" ^
 --name="电脑使用时间监控" ^
 main.py
 
-if %ERRORLEVEL% NEQ 0 (
-    echo 打包失败，请查看上方错误信息。
+if %errorlevel% neq 0 (
+    echo [错误] 打包失败，请查看上方错误信息。
     exit /b 1
 )
 
-:: 复制示例配置文件到dist目录
-echo 正在复制配置文件模板...
-if not exist "dist\config.json" (
-    copy "config_template.json" "dist\config.json"
+echo.
+echo [成功] 打包完成！
+echo [提示] 可执行文件位于: %DIST_PATH%电脑使用时间监控\电脑使用时间监控.exe
+echo.
+
+REM 确保必要的目录存在
+echo [提示] 创建必要的目录结构...
+if not exist "%DIST_PATH%电脑使用时间监控\reports" (
+    mkdir "%DIST_PATH%电脑使用时间监控\reports"
+)
+if not exist "%DIST_PATH%电脑使用时间监控\logs" (
+    mkdir "%DIST_PATH%电脑使用时间监控\logs"
 )
 
-:: 创建可能需要的目录
-echo 正在创建必要目录...
-if not exist "dist\reports" mkdir "dist\reports"
-if not exist "dist\logs" mkdir "dist\logs"
+REM 创建启动快捷方式
+echo [提示] 正在创建快捷方式...
+echo Set oWS = WScript.CreateObject("WScript.Shell") > CreateShortcut.vbs
+echo sLinkFile = "%DIST_PATH%电脑使用时间监控工具.lnk" >> CreateShortcut.vbs
+echo Set oLink = oWS.CreateShortcut(sLinkFile) >> CreateShortcut.vbs
+echo oLink.TargetPath = "%DIST_PATH%电脑使用时间监控\电脑使用时间监控.exe" >> CreateShortcut.vbs
+echo oLink.WorkingDirectory = "%DIST_PATH%电脑使用时间监控" >> CreateShortcut.vbs
+echo oLink.Description = "电脑使用时间监控工具" >> CreateShortcut.vbs
+echo oLink.IconLocation = "%DIST_PATH%电脑使用时间监控\icon.ico" >> CreateShortcut.vbs
+echo oLink.Save >> CreateShortcut.vbs
+cscript //nologo CreateShortcut.vbs
+del CreateShortcut.vbs
 
-:: 创建一个简单的运行时检查批处理文件
-echo 创建启动脚本...
-echo @echo off > "dist\启动程序.bat"
-echo echo 正在检查环境... >> "dist\启动程序.bat"
-echo if not exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Shared\VC\redist\MSVC\v140\vc_redist.x64.exe" ( >> "dist\启动程序.bat"
-echo   echo 提示：您可能需要安装Visual C++运行库，如果程序无法启动，请安装MSVC运行库。 >> "dist\启动程序.bat"
-echo   echo 您可以从Microsoft官方网站下载：https://support.microsoft.com/zh-cn/help/2977003/the-latest-supported-visual-c-downloads >> "dist\启动程序.bat"
-echo   echo. >> "dist\启动程序.bat"
-echo   timeout /t 3 >> "dist\启动程序.bat"
-echo ) >> "dist\启动程序.bat"
-echo echo 正在启动电脑使用时间监控工具... >> "dist\启动程序.bat"
-echo start "" "电脑使用时间监控.exe" >> "dist\启动程序.bat"
-echo exit >> "dist\启动程序.bat"
-
-:: 复制运行时依赖说明
-echo 创建运行依赖说明文件...
-echo 运行环境要求 > "dist\运行环境说明.txt"
-echo =============== >> "dist\运行环境说明.txt"
-echo Windows 7 SP1 或更高版本 (64位) >> "dist\运行环境说明.txt"
-echo Visual C++ Redistributable for Visual Studio 2015-2019 (x64) >> "dist\运行环境说明.txt" 
-echo 下载地址: https://aka.ms/vs/16/release/vc_redist.x64.exe >> "dist\运行环境说明.txt"
-echo. >> "dist\运行环境说明.txt"
-echo 如果程序无法启动，请确保安装了相应版本的VC++运行库 >> "dist\运行环境说明.txt"
-
-:: 停用虚拟环境
-call venv\Scripts\deactivate
-
+echo [提示] 快捷方式已创建: %DIST_PATH%电脑使用时间监控工具.lnk
 echo.
-echo 打包完成！
-echo 可执行文件位于 dist 文件夹中，双击"启动程序.bat"运行程序。
-echo.
-
-exit /b 0 
+echo ========================================
+echo 打包过程已完成，按任意键退出...
+echo ========================================
+pause > nul 
