@@ -93,46 +93,88 @@ class ComputerUsageMonitor:
         """启动监控服务"""
         log_manager.info("启动电脑使用时间监控服务...")
         
-        # 先创建系统托盘图标
+        # 先启动时间跟踪器
+        self.time_tracker.start()
+        
+        # 创建系统托盘图标 - 修改启动顺序
         if TRAY_AVAILABLE:
-            log_manager.info("创建系统托盘图标")
+            log_manager.info("创建系统托盘图标线程")
+            
+            # 确保图标文件存在
+            if not os.path.exists("icon.ico"):
+                icon_alt_paths = [
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico"),
+                    os.path.join(os.path.dirname(sys.executable), "icon.ico"),
+                    "D:\\工作文件\\icon.ico"
+                ]
+                for path in icon_alt_paths:
+                    if os.path.exists(path):
+                        try:
+                            import shutil
+                            shutil.copy(path, "icon.ico")
+                            log_manager.info(f"已从{path}复制图标文件")
+                            break
+                        except Exception as copy_err:
+                            log_manager.warning(f"复制图标文件失败: {copy_err}")
+            
+            # 启动托盘图标线程
             tray_thread = threading.Thread(target=self._create_tray_icon)
             tray_thread.daemon = True
             tray_thread.start()
-            # 等待托盘图标创建完成
-            time.sleep(0.5)
-        
-        # 启动时间跟踪器
-        self.time_tracker.start()
+            
+            # 等待托盘图标初始化
+            time.sleep(1.0)
+            log_manager.info("等待系统托盘图标初始化完成")
+            
+            # 确认系统托盘状态
+            if not hasattr(self, 'tray_icon') or self.tray_icon is None:
+                log_manager.warning("系统托盘图标初始化可能失败，UI将在前台启动")
+            else:
+                log_manager.info("系统托盘图标线程已启动")
+        else:
+            log_manager.warning("不支持系统托盘，UI将在前台启动")
         
         # 启动监视器窗口
+        log_manager.info("启动UI监视器窗口")
         self.monitor_window.start()
         
     def _create_tray_icon(self):
         """创建系统托盘图标和菜单"""
-        # 创建一个简单的图标
-        image = self._create_icon_image()
-        
-        # 定义托盘菜单
-        menu_items = [
-            pystray.MenuItem("显示主窗口", self._show_main_window),
-            pystray.MenuItem("显示使用统计", self._show_usage_stats),
-            pystray.MenuItem("查看统计报告", self._show_usage_report),
-            pystray.MenuItem("设置", self._open_settings),
-            pystray.MenuItem("重置计时器", self._reset_timer),
-            pystray.MenuItem("退出", self._exit_app)
-        ]
-        
-        # 创建托盘图标
-        self.tray_icon = pystray.Icon(
-            name=config.APP_NAME,
-            icon=image,
-            title=config.TRAY_TOOLTIP,
-            menu=pystray.Menu(*menu_items)
-        )
-        
-        # 启动托盘图标（会阻塞当前线程）
-        self.tray_icon.run()
+        try:
+            log_manager.info("开始创建系统托盘图标...")
+            # 创建一个简单的图标
+            image = self._create_icon_image()
+            
+            # 定义托盘菜单
+            menu_items = [
+                pystray.MenuItem("显示主窗口", self._show_main_window),
+                pystray.MenuItem("显示使用统计", self._show_usage_stats),
+                pystray.MenuItem("查看统计报告", self._show_usage_report),
+                pystray.MenuItem("设置", self._open_settings),
+                pystray.MenuItem("重置计时器", self._reset_timer),
+                pystray.MenuItem("退出", self._exit_app)
+            ]
+            
+            # 创建托盘图标
+            self.tray_icon = pystray.Icon(
+                name=config.APP_NAME,
+                icon=image,
+                title=config.TRAY_TOOLTIP,
+                menu=pystray.Menu(*menu_items)
+            )
+            
+            log_manager.info("系统托盘图标已创建，进入托盘图标主循环")
+            # 启动托盘图标（会阻塞当前线程）
+            self.tray_icon.run()
+        except Exception as e:
+            log_manager.error(f"创建系统托盘图标失败: {e}")
+            global TRAY_AVAILABLE
+            TRAY_AVAILABLE = False
+            # 设置UI模块中的状态
+            set_tray_available(False)
+            # 显示UI窗口，防止程序完全无法访问
+            if hasattr(self, 'monitor_window'):
+                self.monitor_window.show()
         
     def _create_icon_image(self):
         """创建一个简单的图标图像"""
@@ -140,10 +182,28 @@ class ComputerUsageMonitor:
             # 首先尝试加载外部图标文件
             icon_path = "icon.ico"
             if os.path.exists(icon_path):
-                return Image.open(icon_path)
+                log_manager.info(f"找到图标文件: {icon_path}")
+                try:
+                    return Image.open(icon_path)
+                except Exception as ico_err:
+                    log_manager.warning(f"无法打开图标文件: {ico_err}")
+                    # 尝试寻找其它可能的路径
+                    alt_paths = [
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico"),
+                        os.path.join(os.path.dirname(sys.executable), "icon.ico"),
+                        "D:\\工作文件\\icon.ico"
+                    ]
+                    for alt_path in alt_paths:
+                        if os.path.exists(alt_path):
+                            log_manager.info(f"尝试替代图标路径: {alt_path}")
+                            try:
+                                return Image.open(alt_path)
+                            except:
+                                continue
         except Exception as e:
             log_manager.warning(f"加载图标文件失败: {e}，将使用默认图标")
         
+        log_manager.info("使用内置默认图标")
         # 创建默认图标
         width = 64
         height = 64
@@ -199,7 +259,7 @@ class ComputerUsageMonitor:
                 "生成报告失败", 
                 error_msg
             )
-            log_manager.error_detail("报告生成", error_msg)
+            log_manager.log_error_detail("报告生成", error_msg)
         
     def _reset_timer(self, icon, item):
         """重置计时器"""

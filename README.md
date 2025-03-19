@@ -155,9 +155,18 @@ elif (self.continuous_notification_active and
 MIT License
 
 
-pyinstaller -D ^
---add-data "D:\工作文件\usage_data.db;data"  ^
+
+
+
+
+pyinstaller -F ^
+--add-data "D:\工作文件\icon.ico;." ^
 --add-data "D:\工作文件\config.json;." ^
+--hidden-import pystray ^
+--hidden-import PIL ^
+--hidden-import PIL.Image ^
+--hidden-import PIL.ImageDraw ^
+--hidden-import PIL._tkinter_finder ^
 --hidden-import plyer.platforms ^
 --hidden-import plyer.platforms.win.notification ^
 --hidden-import matplotlib ^
@@ -171,8 +180,6 @@ pyinstaller -D ^
 --hidden-import tkinter ^
 --hidden-import tkinter.ttk ^
 --hidden-import sqlite3 ^
---hidden-import PIL ^
---hidden-import PIL._tkinter_finder ^
 --hidden-import six ^
 --hidden-import packaging ^
 --hidden-import packaging.version ^
@@ -182,8 +189,13 @@ pyinstaller -D ^
 --hidden-import webbrowser ^
 --hidden-import threading ^
 --hidden-import datetime ^
+--hidden-import log_manager ^
 --hidden-import ctypes ^
---name="电脑使用时间监控2" ^
---distpath D:\共享\workingwaring\ D:\工作文件\main.py 
-
-
+--hidden-import sys ^
+--hidden-import os ^
+--collect-data pystray ^
+--collect-all PIL ^
+--distpath D:\共享\workingwaring\ ^
+--icon="D:\工作文件\icon.ico" ^
+--name="电脑使用时间监控5" ^
+D:\工作文件\main.py

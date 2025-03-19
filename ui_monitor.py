@@ -341,11 +341,11 @@ class MonitorWindow:
         
         if TRAY_AVAILABLE:
             try:
-                # 确保托盘图标可见
-                from main import ComputerUsageMonitor
-                if hasattr(ComputerUsageMonitor, 'tray_icon') and ComputerUsageMonitor.tray_icon:
-                    ComputerUsageMonitor.tray_icon.visible = True
+                # 不要从main中导入，这会导致循环导入
+                # 改为使用更安全的方式确保系统托盘可见
                 self.root.withdraw()
+                # 记录窗口已隐藏
+                log_manager.info("窗口已隐藏，请通过系统托盘访问")
             except Exception as e:
                 log_manager.error(f"隐藏到系统托盘失败: {e}")
                 import tkinter.messagebox as messagebox
@@ -387,7 +387,7 @@ class MonitorWindow:
                     text=f"{display_name} ({mod_time.strftime('%m-%d %H:%M')})"
                 )
         except Exception as e:
-            log_manager.error_detail("报告生成", f"生成报告失败: {e}")
+            log_manager.log_error_detail("报告生成", f"生成报告失败: {e}")
             self.alert_label.config(text=f"生成报告失败: {str(e)[:50]}...")
             
     def _view_report(self):
@@ -439,7 +439,7 @@ class MonitorWindow:
                 )
                 
         except Exception as e:
-            log_manager.error_detail("报告查看", f"查看报告失败: {e}")
+            log_manager.log_error_detail("报告查看", f"查看报告失败: {e}")
             self.alert_label.config(text=f"查看报告失败: {str(e)[:50]}...")
             
     def _reset_timer(self):
@@ -450,7 +450,7 @@ class MonitorWindow:
             self.alert_label.config(text="计时器已重置")
             log_manager.log_activity_reset("用户通过UI界面手动重置")
         except Exception as e:
-            log_manager.error_detail("计时器重置", f"重置计时器失败: {e}")
+            log_manager.log_error_detail("计时器重置", f"重置计时器失败: {e}")
             
     def _set_next_report_time(self):
         """设置下一次报告生成时间(每小时整点)"""
@@ -480,5 +480,5 @@ class MonitorWindow:
             self.inactivity_label.config(text=f"无活动{config.INACTIVITY_RESET}分钟后重置计时器")
             
         except Exception as e:
-            log_manager.error_detail("设置窗口", f"打开设置窗口失败: {e}")
+            log_manager.log_error_detail("设置窗口", f"打开设置窗口失败: {e}")
             self.alert_label.config(text=f"打开设置窗口失败: {e}") 

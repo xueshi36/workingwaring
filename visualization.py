@@ -427,5 +427,5 @@ class UsageVisualizer:
                     raise
                 
         except Exception as e:
-            log_manager.error_detail("报告生成", f"生成HTML报告过程中出错: {e}")
+            log_manager.log_error_detail("报告生成", f"生成HTML报告过程中出错: {e}")
             raise  # 重新抛出异常，让调用者处理 

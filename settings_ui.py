@@ -26,15 +26,17 @@ class SettingsWindow:
             pass  # 如果没有图标文件，忽略错误
             
         # 初始化界面
+        self.settings_vars = {}
         self._init_ui()
         
     def _init_ui(self):
-        """初始化用户界面"""
+        """初始化UI界面"""
         # 创建样式
         style = ttk.Style()
         style.configure("TLabel", padding=5)
         style.configure("TButton", padding=5)
         style.configure("TFrame", padding=10)
+        style.configure("Settings.TLabel", font=("微软雅黑", 9))
         
         # 创建主框架和滚动区域
         main_frame = ttk.Frame(self.window, padding=10)
@@ -42,32 +44,32 @@ class SettingsWindow:
         
         # 创建标签页控件
         tab_control = ttk.Notebook(main_frame)
+        tab_control.pack(fill=tk.BOTH, expand=True, pady=10)
         
         # 标签页1：时间设置
-        time_tab = ttk.Frame(tab_control, padding=10)
+        time_tab = ttk.Frame(tab_control)
         tab_control.add(time_tab, text="时间设置")
         
         # 标签页2：通知设置
-        notify_tab = ttk.Frame(tab_control, padding=10)
+        notify_tab = ttk.Frame(tab_control)
         tab_control.add(notify_tab, text="通知设置")
         
         # 标签页3：报告设置
-        report_tab = ttk.Frame(tab_control, padding=10)
+        report_tab = ttk.Frame(tab_control)
         tab_control.add(report_tab, text="报告设置")
         
         # 标签页4：其他设置
-        other_tab = ttk.Frame(tab_control, padding=10)
+        other_tab = ttk.Frame(tab_control)
         tab_control.add(other_tab, text="其他设置")
-        
-        tab_control.pack(fill=tk.BOTH, expand=True)
         
         # ==== 时间设置标签页 ====
         # 活动检查间隔
         self._add_number_setting(
-            time_tab, 
-            "活动检查间隔(分钟):", 
+            time_tab,
+            "活动检查间隔 (分钟):",
             "ACTIVITY_CHECK_INTERVAL",
-            1, 10, 1
+            0,
+            1, 10
         )
         
         # 连续使用提醒时间
@@ -75,7 +77,7 @@ class SettingsWindow:
             time_tab, 
             "连续使用提醒时间(分钟):", 
             "CONTINUOUS_USAGE_ALERT",
-            30, 180, 5
+            1, 30, 180
         )
         
         # 无活动重置时间
@@ -83,7 +85,7 @@ class SettingsWindow:
             time_tab, 
             "无活动重置时间(分钟):", 
             "INACTIVITY_RESET",
-            5, 30, 1
+            2, 5, 30
         )
         
         # ==== 通知设置标签页 ====
@@ -99,7 +101,7 @@ class SettingsWindow:
             notify_tab, 
             "连续通知间隔(分钟):", 
             "CONTINUOUS_NOTIFICATION_INTERVAL",
-            1, 15, 1
+            1, 1, 15
         )
         
         # 应用名称
@@ -159,7 +161,7 @@ class SettingsWindow:
             report_tab, 
             "自动报告生成间隔(分钟):", 
             "AUTO_REPORT_INTERVAL",
-            15, 240, 15
+            1, 15, 240
         )
         
         # 报告显示天数
@@ -167,7 +169,7 @@ class SettingsWindow:
             report_tab, 
             "报告显示天数:", 
             "REPORT_DAYS",
-            7, 90, 1
+            1, 7, 90
         )
         
         # 报告目录
@@ -221,41 +223,31 @@ class SettingsWindow:
         )
         cancel_btn.pack(side=tk.RIGHT, padx=5)
         
-    def _add_number_setting(self, parent, label_text, config_key, min_val=0, max_val=100, step=1):
-        """添加数字设置控件
+    def _add_number_setting(self, parent, label_text, variable_name, row, min_val=0, max_val=1000):
+        """添加数字设置控件"""
+        # 创建一行
+        row_frame = ttk.Frame(parent)
+        row_frame.pack(fill=tk.X, pady=5)
         
-        参数:
-            parent: 父容器
-            label_text: 标签文本
-            config_key: 配置键名
-            min_val: 最小值
-            max_val: 最大值
-            step: 步长
-        """
-        frame = ttk.Frame(parent)
-        frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Label(frame, text=label_text).pack(side=tk.LEFT)
+        ttk.Label(row_frame, text=label_text).pack(side=tk.LEFT, padx=5)
         
         # 获取当前值
-        current_value = getattr(config, config_key)
+        current_value = getattr(config, variable_name)
         
-        # 创建变量和控件
+        # 创建变量
         var = tk.IntVar(value=current_value)
-        spinbox = ttk.Spinbox(
-            frame, 
-            from_=min_val, 
-            to=max_val, 
-            increment=step,
+        self.settings_vars[variable_name] = var
+        
+        # 使用tk.Spinbox替代ttk.Spinbox
+        spinbox = tk.Spinbox(
+            row_frame,
+            from_=min_val,
+            to=max_val,
             textvariable=var,
             width=10
         )
-        spinbox.pack(side=tk.RIGHT)
         
-        # 存储变量引用
-        if not hasattr(self, "settings_vars"):
-            self.settings_vars = {}
-        self.settings_vars[config_key] = var
+        spinbox.pack(side=tk.RIGHT, padx=5)
         
     def _add_text_setting(self, parent, label_text, config_key, is_multiline=False):
         """添加文本设置控件
@@ -266,10 +258,11 @@ class SettingsWindow:
             config_key: 配置键名
             is_multiline: 是否多行文本
         """
-        frame = ttk.Frame(parent)
-        frame.pack(fill=tk.X, pady=5)
+        # 创建一行
+        row_frame = ttk.Frame(parent)
+        row_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(frame, text=label_text).pack(side=tk.LEFT)
+        ttk.Label(row_frame, text=label_text).pack(side=tk.LEFT, padx=5)
         
         # 获取当前值
         current_value = getattr(config, config_key)
@@ -280,9 +273,9 @@ class SettingsWindow:
         # 创建控件
         if is_multiline:
             # 多行文本框
-            input_widget = tk.Text(frame, height=3, width=40)
+            input_widget = tk.Text(row_frame, height=3, width=40)
             input_widget.insert("1.0", current_value)
-            input_widget.pack(side=tk.RIGHT)
+            input_widget.pack(side=tk.RIGHT, padx=5)
             
             # 存储控件引用而非变量
             if not hasattr(self, "text_widgets"):
@@ -290,8 +283,8 @@ class SettingsWindow:
             self.text_widgets[config_key] = input_widget
         else:
             # 单行文本框
-            entry = ttk.Entry(frame, textvariable=var, width=30)
-            entry.pack(side=tk.RIGHT)
+            entry = ttk.Entry(row_frame, textvariable=var, width=30)
+            entry.pack(side=tk.RIGHT, padx=5)
             
             # 存储变量引用
             if not hasattr(self, "settings_vars"):
@@ -306,8 +299,9 @@ class SettingsWindow:
             label_text: 标签文本
             config_key: 配置键名
         """
-        frame = ttk.Frame(parent)
-        frame.pack(fill=tk.X, pady=5)
+        # 创建一行
+        row_frame = ttk.Frame(parent)
+        row_frame.pack(fill=tk.X, pady=5)
         
         # 获取当前值
         current_value = getattr(config, config_key)
@@ -317,11 +311,11 @@ class SettingsWindow:
         
         # 创建复选框
         checkbox = ttk.Checkbutton(
-            frame, 
+            row_frame, 
             text=label_text,
             variable=var
         )
-        checkbox.pack(side=tk.LEFT)
+        checkbox.pack(side=tk.LEFT, padx=5)
         
         # 存储变量引用
         if not hasattr(self, "settings_vars"):

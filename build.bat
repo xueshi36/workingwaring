@@ -1,7 +1,7 @@
 @echo off
 echo ========================================
-echo 电脑使用时间监控工具打包脚本 v1.2.1
-echo 修复了报告功能在打包版本中的显示问题
+echo 电脑使用时间监控工具打包脚本 v1.3.0
+echo 修复了系统托盘功能和报告显示问题
 echo ========================================
 echo.
 
@@ -20,6 +20,26 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo [错误] PyInstaller安装失败，请手动安装后重试。
         exit /b 1
+    )
+)
+
+REM 检查必要的库是否安装
+echo [提示] 检查必要的库...
+python -c "import pystray" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 未安装pystray库，正在安装...
+    pip install pystray
+    if %errorlevel% neq 0 (
+        echo [警告] pystray安装失败，系统托盘功能可能不可用。
+    )
+)
+
+python -c "from PIL import Image" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 未安装Pillow库，正在安装...
+    pip install pillow
+    if %errorlevel% neq 0 (
+        echo [警告] Pillow安装失败，系统托盘图标可能不可用。
     )
 )
 
@@ -47,14 +67,23 @@ if not exist "logs" (
     echo [提示] 已创建logs目录
 )
 
+REM 确保图标文件存在
+if not exist "icon.ico" (
+    echo [警告] 图标文件不存在，系统托盘图标可能无法显示
+)
+
 echo [提示] 开始打包应用程序...
 echo [提示] 这可能需要几分钟时间，请耐心等待...
 
 REM 执行PyInstaller打包命令
 pyinstaller -D ^
---add-data "D:\工作文件\usage_data.db;data"  ^
---add-data "D:\工作文件\icon.ico;." ^
---add-data "D:\工作文件\config.json;." ^
+--add-data "icon.ico;." ^
+--add-data "config.json;." ^
+--hidden-import pystray ^
+--hidden-import PIL ^
+--hidden-import PIL.Image ^
+--hidden-import PIL.ImageDraw ^
+--hidden-import PIL._tkinter_finder ^
 --hidden-import plyer.platforms ^
 --hidden-import plyer.platforms.win.notification ^
 --hidden-import matplotlib ^
@@ -68,8 +97,6 @@ pyinstaller -D ^
 --hidden-import tkinter ^
 --hidden-import tkinter.ttk ^
 --hidden-import sqlite3 ^
---hidden-import PIL ^
---hidden-import PIL._tkinter_finder ^
 --hidden-import six ^
 --hidden-import packaging ^
 --hidden-import packaging.version ^
@@ -80,9 +107,14 @@ pyinstaller -D ^
 --hidden-import threading ^
 --hidden-import datetime ^
 --hidden-import ctypes ^
+--hidden-import sys ^
+--hidden-import os ^
+--collect-data pystray ^
+--collect-all PIL ^
 --distpath %DIST_PATH% ^
---icon="D:\工作文件\icon.ico" ^
+--icon="icon.ico" ^
 --name="电脑使用时间监控" ^
+--noconsole ^
 main.py
 
 if %errorlevel% neq 0 (
@@ -111,6 +143,13 @@ echo [提示] 复制示例报告...
 if exist "reports" (
     xcopy /s /y /i "reports\*" "%DIST_PATH%电脑使用时间监控\reports\" >nul 2>&1
     echo [提示] 已复制reports文件夹中的内容
+)
+
+REM 复制图标文件到打包目录(再次确认)
+echo [提示] 确保图标文件已复制...
+if exist "icon.ico" (
+    copy /y "icon.ico" "%DIST_PATH%电脑使用时间监控\" >nul 2>&1
+    echo [提示] 已复制图标文件
 )
 
 REM 创建其他必要目录
