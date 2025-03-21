@@ -57,9 +57,57 @@ class ComputerUsageMonitor:
             base_path = os.path.dirname(os.path.abspath(__file__))
         
         reports_dir = os.path.join(base_path, config.REPORTS_DIR if hasattr(config, 'REPORTS_DIR') else "reports")
-        if not os.path.exists(reports_dir):
-            os.makedirs(reports_dir)
-            log_manager.info(f"创建报告目录: {reports_dir}")
+        try:
+            if not os.path.exists(reports_dir):
+                os.makedirs(reports_dir, exist_ok=True)
+                log_manager.info(f"创建报告目录: {reports_dir}")
+            else:
+                # 测试目录权限
+                test_file = os.path.join(reports_dir, "test.txt")
+                try:
+                    with open(test_file, 'w') as f:
+                        f.write("test")
+                    os.remove(test_file)
+                except Exception as e:
+                    log_manager.warning(f"报告目录权限测试失败，尝试替代路径: {e}")
+                    # 尝试使用用户目录
+                    alt_reports_dir = os.path.join(os.path.expanduser("~"), "usage_monitor_reports")
+                    try:
+                        if not os.path.exists(alt_reports_dir):
+                            os.makedirs(alt_reports_dir, exist_ok=True)
+                        reports_dir = alt_reports_dir
+                        log_manager.info(f"将使用替代报告目录: {reports_dir}")
+                    except Exception as e2:
+                        log_manager.error(f"创建替代报告目录也失败: {e2}")
+                        # 使用当前目录
+                        reports_dir = os.path.abspath(".")
+                        log_manager.warning(f"将使用当前目录: {reports_dir}")
+        except Exception as e:
+            log_manager.error(f"创建报告目录失败: {e}")
+            # 尝试使用当前目录
+            reports_dir = os.path.abspath(".")
+            log_manager.warning(f"将使用当前目录作为报告目录: {reports_dir}")
+        
+        # 确保日志目录存在
+        logs_dir = os.path.join(base_path, "logs")
+        try:
+            if not os.path.exists(logs_dir):
+                os.makedirs(logs_dir, exist_ok=True)
+                log_manager.info(f"创建日志目录: {logs_dir}")
+        except Exception as e:
+            log_manager.error(f"创建日志目录失败: {e}")
+            # 尝试使用用户目录
+            try:
+                alt_logs_dir = os.path.join(os.path.expanduser("~"), "usage_monitor_logs")
+                if not os.path.exists(alt_logs_dir):
+                    os.makedirs(alt_logs_dir, exist_ok=True)
+                logs_dir = alt_logs_dir
+                log_manager.info(f"将使用替代日志目录: {logs_dir}")
+            except Exception as e2:
+                log_manager.error(f"创建替代日志目录也失败: {e2}")
+                # 使用当前目录
+                logs_dir = os.path.abspath(".")
+                log_manager.warning(f"将使用当前目录作为日志目录: {logs_dir}")
         
         # 初始化组件
         log_manager.info("正在初始化系统组件...")

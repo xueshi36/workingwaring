@@ -59,12 +59,16 @@ REM 确保reports目录存在
 if not exist "reports" (
     mkdir "reports"
     echo [提示] 已创建reports目录
+) else (
+    echo [提示] reports目录已存在
 )
 
 REM 确保logs目录存在
 if not exist "logs" (
     mkdir "logs"
     echo [提示] 已创建logs目录
+) else (
+    echo [提示] logs目录已存在
 )
 
 REM 确保图标文件存在
@@ -132,10 +136,33 @@ echo [提示] 创建必要的目录结构...
 if not exist "%DIST_PATH%电脑使用时间监控\reports" (
     mkdir "%DIST_PATH%电脑使用时间监控\reports"
     echo [提示] 已创建报告目录
+) else (
+    echo [提示] 报告目录已存在
 )
+
+REM 给报告目录增加完全权限
+echo [提示] 设置报告目录权限...
+icacls "%DIST_PATH%电脑使用时间监控\reports" /grant "*S-1-1-0":(OI)(CI)F /T >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [警告] 设置报告目录权限失败，可能需要手动设置
+) else (
+    echo [提示] 已设置报告目录权限
+)
+
 if not exist "%DIST_PATH%电脑使用时间监控\logs" (
     mkdir "%DIST_PATH%电脑使用时间监控\logs"
     echo [提示] 已创建日志目录
+) else (
+    echo [提示] 日志目录已存在
+)
+
+REM 给日志目录增加完全权限
+echo [提示] 设置日志目录权限...
+icacls "%DIST_PATH%电脑使用时间监控\logs" /grant "*S-1-1-0":(OI)(CI)F /T >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [警告] 设置日志目录权限失败，可能需要手动设置
+) else (
+    echo [提示] 已设置日志目录权限
 )
 
 REM 复制当前目录中的reports文件夹内容到打包目录
@@ -162,10 +189,37 @@ REM 验证目录权限
 echo [提示] 验证目录权限...
 echo 测试文件 > "%DIST_PATH%电脑使用时间监控\reports\test.txt" 2>nul
 if %errorlevel% neq 0 (
-    echo [警告] 可能没有对报告目录的写入权限，请确保程序有足够权限
+    echo [警告] 可能没有对报告目录的写入权限，尝试创建空目录解决...
+    rmdir /s /q "%DIST_PATH%电脑使用时间监控\reports" >nul 2>&1
+    mkdir "%DIST_PATH%电脑使用时间监控\reports"
+    echo 测试文件 > "%DIST_PATH%电脑使用时间监控\reports\test.txt" 2>nul
+    if %errorlevel% neq 0 (
+        echo [警告] 仍然无法写入报告目录，请手动创建并授权
+    ) else (
+        del "%DIST_PATH%电脑使用时间监控\reports\test.txt" >nul 2>&1
+        echo [提示] 报告目录权限问题已解决
+    )
 ) else (
     del "%DIST_PATH%电脑使用时间监控\reports\test.txt" >nul 2>&1
     echo [提示] 报告目录权限正常
+)
+
+REM 验证日志目录权限
+echo 测试文件 > "%DIST_PATH%电脑使用时间监控\logs\test.txt" 2>nul
+if %errorlevel% neq 0 (
+    echo [警告] 可能没有对日志目录的写入权限，尝试创建空目录解决...
+    rmdir /s /q "%DIST_PATH%电脑使用时间监控\logs" >nul 2>&1
+    mkdir "%DIST_PATH%电脑使用时间监控\logs"
+    echo 测试文件 > "%DIST_PATH%电脑使用时间监控\logs\test.txt" 2>nul
+    if %errorlevel% neq 0 (
+        echo [警告] 仍然无法写入日志目录，请手动创建并授权
+    ) else (
+        del "%DIST_PATH%电脑使用时间监控\logs\test.txt" >nul 2>&1
+        echo [提示] 日志目录权限问题已解决
+    )
+) else (
+    del "%DIST_PATH%电脑使用时间监控\logs\test.txt" >nul 2>&1
+    echo [提示] 日志目录权限正常
 )
 
 REM 创建启动快捷方式

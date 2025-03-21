@@ -210,81 +210,113 @@ class UsageVisualizer:
             days: 要包含的天数，默认为30天
             
         返回:
-            str: 生成的报告文件路径
+            str: 生成的报告文件路径，如无数据则生成空报告
         """
         log_manager.info(f"开始生成过去{days}天的月度摘要...")
         # 获取每日汇总数据
         daily_data = self.db_manager.get_daily_summaries(days)
         
-        if not daily_data:
-            log_manager.warning("没有足够的数据生成月度摘要")
-            return None
-            
-        log_manager.info(f"获取到{len(daily_data)}天的数据进行月度摘要")
-            
-        # 准备绘图数据
-        dates = []
-        active_minutes = []
-        longest_sessions = []
-        
-        for data in daily_data:
-            dates.append(data[0])
-            active_minutes.append(data[1])
-            longest_sessions.append(data[2])
-            
-        # 反转列表以便按时间先后顺序显示
-        dates.reverse()
-        active_minutes.reverse()
-        longest_sessions.reverse()
-        
         # 创建图形
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
         
-        # 绘制活跃分钟数
-        ax1.plot(dates, active_minutes, marker='o', linestyle='-', color='#2980b9', linewidth=2)
-        ax1.set_title("每日电脑使用总时间", fontsize=14)
-        ax1.set_ylabel("活跃分钟数", fontsize=12)
-        ax1.grid(True, linestyle='--', alpha=0.7)
-        
-        # 在数据点上显示值
-        for i, v in enumerate(active_minutes):
-            if i % 3 == 0:  # 每隔几个点显示一次，避免拥挤
-                ax1.text(i, v + 5, str(v), ha='center')
-        
-        # 绘制最长会话
-        ax2.plot(dates, longest_sessions, marker='s', linestyle='-', color='#27ae60', linewidth=2)
-        ax2.set_title("每日最长连续使用时间", fontsize=14)
-        ax2.set_ylabel("连续分钟数", fontsize=12)
-        ax2.set_xlabel("日期", fontsize=12)
-        ax2.grid(True, linestyle='--', alpha=0.7)
-        
-        # 在数据点上显示值
-        for i, v in enumerate(longest_sessions):
-            if i % 3 == 0:
-                ax2.text(i, v + 2, str(v), ha='center')
-        
-        # 设置x轴日期格式
-        if len(dates) > 10:
-            # 如果日期太多，只显示部分
-            step = len(dates) // 10
-            ax2.set_xticks(range(0, len(dates), step))
-            ax2.set_xticklabels([dates[i] for i in range(0, len(dates), step)], rotation=45)
-        else:
-            ax2.set_xticks(range(len(dates)))
-            ax2.set_xticklabels(dates, rotation=45)
+        if not daily_data or len(daily_data) == 0:
+            log_manager.warning("没有足够的数据生成月度摘要，将创建空报告")
+            # 绘制空图
+            ax1.text(0.5, 0.5, "暂无使用数据", ha='center', va='center', fontsize=16)
+            ax2.text(0.5, 0.5, "暂无使用数据", ha='center', va='center', fontsize=16)
             
+            # 设置标题
+            ax1.set_title("每日电脑使用总时间", fontsize=14)
+            ax2.set_title("每日最长连续使用时间", fontsize=14)
+        else:    
+            log_manager.info(f"获取到{len(daily_data)}天的数据进行月度摘要")
+            
+            # 准备绘图数据
+            dates = []
+            active_minutes = []
+            longest_sessions = []
+            
+            for data in daily_data:
+                dates.append(data[0])
+                active_minutes.append(data[1])
+                longest_sessions.append(data[2])
+            
+            # 反转列表以便按时间先后顺序显示
+            dates.reverse()
+            active_minutes.reverse()
+            longest_sessions.reverse()
+            
+            # 绘制活跃分钟数
+            ax1.plot(dates, active_minutes, marker='o', linestyle='-', color='#2980b9', linewidth=2)
+            ax1.set_title("每日电脑使用总时间", fontsize=14)
+            ax1.set_ylabel("活跃分钟数", fontsize=12)
+            ax1.grid(True, linestyle='--', alpha=0.7)
+            
+            # 在数据点上显示值
+            for i, v in enumerate(active_minutes):
+                if i % 3 == 0:  # 每隔几个点显示一次，避免拥挤
+                    ax1.text(i, v + 5, str(v), ha='center')
+            
+            # 绘制最长会话
+            ax2.plot(dates, longest_sessions, marker='s', linestyle='-', color='#27ae60', linewidth=2)
+            ax2.set_title("每日最长连续使用时间", fontsize=14)
+            ax2.set_ylabel("连续分钟数", fontsize=12)
+            ax2.set_xlabel("日期", fontsize=12)
+            ax2.grid(True, linestyle='--', alpha=0.7)
+            
+            # 在数据点上显示值
+            for i, v in enumerate(longest_sessions):
+                if i % 3 == 0:
+                    ax2.text(i, v + 2, str(v), ha='center')
+            
+            # 设置x轴日期格式
+            if len(dates) > 10:
+                # 如果日期太多，只显示部分
+                step = len(dates) // 10
+                ax2.set_xticks(range(0, len(dates), step))
+                ax2.set_xticklabels([dates[i] for i in range(0, len(dates), step)], rotation=45)
+            else:
+                ax2.set_xticks(range(len(dates)))
+                ax2.set_xticklabels(dates, rotation=45)
+        
         # 紧凑布局
         plt.tight_layout()
         
         # 保存图像
         end_date = datetime.now().strftime("%Y-%m-%d")
         filename = f"monthly_summary_{end_date}.png"
-        filepath = os.path.join(self.output_dir, filename)
-        plt.savefig(filepath, dpi=120)
-        plt.close(fig)
         
-        log_manager.info(f"生成月度摘要: {filepath}")
-        return filepath
+        # 确保输出目录存在
+        try:
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir, exist_ok=True)
+                log_manager.info(f"为月度摘要创建目录: {self.output_dir}")
+        except Exception as e:
+            log_manager.error(f"创建月度摘要目录失败: {e}")
+            # 尝试使用当前目录
+            self.output_dir = os.path.abspath(".")
+            log_manager.info(f"月度摘要将使用当前目录: {self.output_dir}")
+        
+        filepath = os.path.join(self.output_dir, filename)
+        
+        try:
+            plt.savefig(filepath, dpi=120)
+            plt.close(fig)
+            log_manager.info(f"生成月度摘要: {filepath}")
+            return filepath
+        except Exception as e:
+            log_manager.error(f"保存月度摘要图失败: {e}")
+            # 如果失败，尝试保存到当前目录
+            try:
+                alt_path = os.path.abspath(filename)
+                plt.savefig(alt_path, dpi=120)
+                plt.close(fig)
+                log_manager.info(f"使用替代路径保存月度摘要: {alt_path}")
+                return alt_path
+            except Exception as e2:
+                log_manager.error(f"使用替代路径保存月度摘要也失败: {e2}")
+                plt.close(fig)
+                return ""  # 返回空字符串而不是None
 
     def generate_usage_stats_html(self):
         """生成包含所有报表的HTML页面
@@ -302,7 +334,7 @@ class UsageVisualizer:
         except Exception as e:
             log_manager.error(f"确保报告目录存在时出错: {e}")
             # 尝试使用当前目录
-            self.output_dir = "."
+            self.output_dir = os.path.abspath(".")
             log_manager.info("改用当前目录作为输出目录")
         
         # 生成所有报表
@@ -311,21 +343,29 @@ class UsageVisualizer:
         try:
             log_manager.info("正在生成每日报告...")
             daily_report = self.generate_daily_report()
+            if not daily_report:
+                daily_report = ""
             
             log_manager.info("正在生成周热力图...")
             weekly_heatmap = self.generate_weekly_heatmap()
+            if not weekly_heatmap:
+                weekly_heatmap = ""
             
             log_manager.info("正在生成月度摘要...")
             monthly_summary = self.generate_monthly_summary()
+            if not monthly_summary:
+                monthly_summary = ""
             
             log_manager.info("所有图表生成完成，开始组装HTML报告...")
             
-            # 确保所有报表都生成成功
-            if not daily_report or not weekly_heatmap or not monthly_summary:
-                log_manager.warning("部分报表生成失败，HTML报告可能不完整")
-            
             # 准备HTML内容
             generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 处理图片路径
+            daily_report_img = os.path.basename(daily_report) if daily_report else ""
+            weekly_heatmap_img = os.path.basename(weekly_heatmap) if weekly_heatmap else ""
+            monthly_summary_img = os.path.basename(monthly_summary) if monthly_summary else ""
+            
             html_content = f"""
             <!DOCTYPE html>
             <html lang="zh-CN">
@@ -371,6 +411,14 @@ class UsageVisualizer:
                         color: #7f8c8d;
                         font-size: 0.9em;
                     }}
+                    .no-data {{
+                        padding: 20px;
+                        text-align: center;
+                        color: #7f8c8d;
+                        border: 1px dashed #ddd;
+                        border-radius: 4px;
+                        margin: 15px 0;
+                    }}
                 </style>
             </head>
             <body>
@@ -380,19 +428,19 @@ class UsageVisualizer:
                     
                     <div class="report-section">
                         <h2>今日使用情况</h2>
-                        <img src="{os.path.basename(daily_report)}" alt="每日使用报告" class="report-image">
+                        {f'<img src="{daily_report_img}" alt="每日使用报告" class="report-image">' if daily_report_img else '<div class="no-data">暂无数据</div>'}
                         <p>此图表显示了今天每小时的电脑活跃使用分钟数。</p>
                     </div>
                     
                     <div class="report-section">
                         <h2>一周使用热力图</h2>
-                        <img src="{os.path.basename(weekly_heatmap)}" alt="周热力图" class="report-image">
+                        {f'<img src="{weekly_heatmap_img}" alt="周热力图" class="report-image">' if weekly_heatmap_img else '<div class="no-data">暂无数据</div>'}
                         <p>热力图显示了过去一周每小时的使用情况，颜色越深表示使用时间越长。</p>
                     </div>
                     
                     <div class="report-section">
                         <h2>月度使用摘要</h2>
-                        <img src="{os.path.basename(monthly_summary)}" alt="月度摘要" class="report-image">
+                        {f'<img src="{monthly_summary_img}" alt="月度摘要" class="report-image">' if monthly_summary_img else '<div class="no-data">暂无数据</div>'}
                         <p>上图显示过去30天的每日总使用时间，下图显示每日最长连续使用会话。</p>
                     </div>
                     
@@ -424,8 +472,8 @@ class UsageVisualizer:
                     return alt_path
                 except Exception as e2:
                     log_manager.error(f"使用替代路径保存HTML也失败: {e2}")
-                    raise
+                    return ""  # 返回空字符串而不是None
                 
         except Exception as e:
             log_manager.log_error_detail("报告生成", f"生成HTML报告过程中出错: {e}")
-            raise  # 重新抛出异常，让调用者处理 
+            return ""  # 返回空字符串而不是抛出异常 

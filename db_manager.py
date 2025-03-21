@@ -180,6 +180,64 @@ class DatabaseManager:
                 logging.error(f"回滚事务失败: {rollback_error}")
             return False
             
+    def update_daily_summary(self, date_str, total_minutes=None):
+        """更新每日汇总数据
+        
+        计算并更新指定日期的使用统计数据，包括总活跃分钟数和最长连续会话。
+        
+        参数:
+            date_str (str): 日期字符串 (YYYY-MM-DD)
+            total_minutes (int, optional): 如果提供，直接使用此值作为总使用分钟数
+        """
+        if total_minutes is not None:
+            # 如果提供了total_minutes参数，直接更新数据库
+            conn, cursor = self._get_connection()
+            try:
+                # 获取最长会话 - 这个我们仍然需要计算
+                cursor.execute("""
+                    SELECT COUNT(*) AS session_length
+                    FROM (
+                        SELECT 
+                            id,
+                            timestamp,
+                            is_active,
+                            (
+                                SELECT COUNT(*) 
+                                FROM minute_activity AS m2 
+                                WHERE m2.is_active = 0 AND m2.timestamp <= m1.timestamp
+                                AND m2.date = ?
+                            ) AS reset_group
+                        FROM minute_activity AS m1
+                        WHERE m1.date = ?
+                        AND m1.is_active = 1
+                    ) AS active_with_reset
+                    GROUP BY reset_group
+                    ORDER BY session_length DESC
+                    LIMIT 1
+                """, (date_str, date_str))
+                
+                result = cursor.fetchone()
+                longest_session = result[0] if result else 0
+                
+                # 更新或插入每日汇总记录
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute("""
+                    INSERT OR REPLACE INTO daily_summary 
+                    (date, total_active_minutes, longest_session, last_updated)
+                    VALUES (?, ?, ?, ?)
+                """, (date_str, total_minutes, longest_session, now))
+                
+                conn.commit()
+            except Exception as e:
+                logging.error(f"使用提供的总分钟数更新每日汇总失败: {e}")
+                try:
+                    conn.rollback()
+                except Exception as rollback_err:
+                    logging.error(f"回滚事务失败: {rollback_err}")
+        else:
+            # 否则使用内部方法计算并更新
+            self._update_daily_summary(date_str)
+        
     def _update_daily_summary(self, date_str):
         """更新每日汇总数据
         

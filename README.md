@@ -159,7 +159,7 @@ MIT License
 
 
 
-pyinstaller -F ^
+pyinstaller -D ^
 --add-data "D:\工作文件\icon.ico;." ^
 --add-data "D:\工作文件\config.json;." ^
 --hidden-import pystray ^
@@ -197,5 +197,5 @@ pyinstaller -F ^
 --collect-all PIL ^
 --distpath D:\共享\workingwaring\ ^
 --icon="D:\工作文件\icon.ico" ^
---name="电脑使用时间监控5" ^
+--name="电脑使用时间监控7" ^  
 D:\工作文件\main.py

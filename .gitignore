@@ -2057,3 +2057,14 @@ __pycache__/notification.cpython-310.pyc
 __pycache__/time_tracker.cpython-310.pyc
 __pycache__/ui_monitor.cpython-310.pyc
 __pycache__/visualization.cpython-310.pyc
+logs/usage_monitor_2025-03-20.log
+logs/usage_monitor_2025-03-21.log
+data/usage_data.db
+reports/daily_report_2025-03-20.png
+reports/daily_report_2025-03-21.png
+reports/monthly_summary_2025-03-20.png
+reports/monthly_summary_2025-03-21.png
+reports/usage_report_2025-03-20.html
+reports/usage_report_2025-03-21.html
+reports/weekly_heatmap_2025-03-14_to_2025-03-20.png
+reports/weekly_heatmap_2025-03-15_to_2025-03-21.png

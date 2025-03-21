@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timedelta
 import log_manager
 import config
+import sys
 
 # 移除对main的直接导入
 # from main import TRAY_AVAILABLE
@@ -341,11 +342,24 @@ class MonitorWindow:
         
         if TRAY_AVAILABLE:
             try:
-                # 不要从main中导入，这会导致循环导入
-                # 改为使用更安全的方式确保系统托盘可见
+                # 设置一个标志表明窗口已隐藏
+                self.is_hidden = True
+                
+                # 在隐藏窗口前确保更新线程继续工作
+                if not hasattr(self, 'keep_alive_timer') or not self.keep_alive_timer.is_alive():
+                    # 使用单独的线程保持后台活动
+                    self.keep_alive_timer = threading.Thread(target=self._background_update, daemon=True)
+                    self.keep_alive_timer.start()
+                    log_manager.info("启动后台更新线程保持活动监测")
+                    
+                # 隐藏窗口
                 self.root.withdraw()
-                # 记录窗口已隐藏
                 log_manager.info("窗口已隐藏，请通过系统托盘访问")
+                
+                # 额外的工作：确保主线程不会被完全挂起
+                # 在Win10上特别有用，让系统知道应用仍然活跃
+                self.root.after(100, self._keep_alive_tick)
+                
             except Exception as e:
                 log_manager.error(f"隐藏到系统托盘失败: {e}")
                 import tkinter.messagebox as messagebox
@@ -356,6 +370,75 @@ class MonitorWindow:
             messagebox.showinfo("提示", "系统托盘功能不可用，窗口将保持打开。\n请检查是否安装了pystray和Pillow库。")
             log_manager.warning("系统托盘不可用，窗口无法隐藏")
         
+    def _keep_alive_tick(self):
+        """保持Tkinter事件循环活跃，在Windows 10上特别重要"""
+        if self.running and hasattr(self, 'is_hidden') and self.is_hidden:
+            # 强制事件循环保持活跃，但不做任何可见操作
+            # 这对于Windows 10系统尤其重要，防止后台应用被系统挂起
+            self.root.after(1000, self._keep_alive_tick)  # 每秒钟执行一次
+        
+    def _background_update(self):
+        """后台保持活动并确保时间跟踪正常工作"""
+        log_manager.info("开始后台更新线程")
+        update_count = 0
+        
+        # 系统检测
+        import platform
+        is_windows10 = False
+        try:
+            if platform.system() == 'Windows' and platform.version().startswith('10'):
+                is_windows10 = True
+                log_manager.info("检测到Windows 10系统，启用特殊处理")
+        except:
+            pass
+        
+        while self.running and hasattr(self, 'is_hidden') and self.is_hidden:
+            try:
+                # 强制更新统计数据
+                stats = self.time_tracker.get_usage_stats()
+                
+                # 每10次更新记录一次详细日志，避免日志过多
+                update_count += 1
+                if update_count % 10 == 0:
+                    log_manager.info(f"后台更新中: 连续使用{stats['continuous_usage_minutes']}分钟，今日总计{stats['daily_usage_minutes']}分钟")
+                else:
+                    log_manager.debug(f"后台更新: 连续使用{stats['continuous_usage_minutes']}分钟，今日总计{stats['daily_usage_minutes']}分钟")
+                
+                # 关键：确保活动监控器继续检测活动 - 修复方法调用
+                activity_data = self.time_tracker.activity_monitor.check_activity_minute()
+                
+                # Windows 10系统上，强制更新数据库以确保活动记录
+                if is_windows10 and activity_data["is_active"] and self.time_tracker.db_manager:
+                    # 强制数据库记录当前活动，确保即使在后台也能记录
+                    try:
+                        self.time_tracker.db_manager.record_minute_activity(
+                            datetime.now(),
+                            activity_data["is_active"],
+                            activity_data["mouse_moves"],
+                            activity_data["key_presses"]
+                        )
+                    except Exception as db_err:
+                        log_manager.error(f"强制记录活动数据失败: {db_err}")
+                
+                # 没必要太频繁更新，每5秒更新一次即可
+                # 在Windows 10上使用稍快的更新间隔
+                time.sleep(5 if is_windows10 else 10)
+            except Exception as e:
+                log_manager.error(f"后台更新出错: {e}")
+                time.sleep(30)  # 出错后延长间隔
+        
+        log_manager.info("后台更新线程结束")
+
+    def show(self):
+        """显示窗口(如果被隐藏)"""
+        if self.root:
+            log_manager.info("显示主窗口")
+            # 重置隐藏标志
+            self.is_hidden = False
+            self.root.deiconify()
+            # 立即更新UI显示数据
+            self._update_ui()
+
     def _generate_report(self):
         """生成使用报告"""
         try:
@@ -459,12 +542,6 @@ class MonitorWindow:
         self.next_report_time = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         log_manager.info(f"设置下次报告生成时间: {self.next_report_time}")
         
-    def show(self):
-        """显示窗口(如果被隐藏)"""
-        if self.root:
-            log_manager.info("显示主窗口")
-            self.root.deiconify()
-
     def _open_settings(self):
         """打开设置窗口"""
         try:

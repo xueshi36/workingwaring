@@ -1,5 +1,5 @@
 {
-    "activity_check_interval": 3,
+    "activity_check_interval": 1,
     "continuous_usage_alert": 45,
     "inactivity_reset": 10,
     "continuous_notification_interval": 3,

@@ -1,319 +1,403 @@
-# 电脑使用时间监控工具 - 设计文档
+# 电脑使用时间监控系统设计文档
 
-## 1. 设计思路与架构
+## 1. 系统概述
 
-### 1.1 核心设计理念
+### 1.1 项目目标
+开发一个轻量级的电脑使用时间监控系统，用于：
+- 实时监控用户电脑使用情况
+- 记录每日使用时间统计
+- 生成月度使用报告
+- 提供数据可视化展示
 
-本项目旨在创建一个既易用又强大的电脑使用时间监控工具，通过以下设计理念指导实现：
+### 1.2 核心功能
+- 实时活动监控
+- 使用时间统计
+- 数据持久化存储
+- 月度报告生成
+- 数据可视化展示
 
-- **用户友好**：简洁的界面和便捷的操作方式
-- **非侵入性**：在后台运行，不干扰用户正常工作
-- **准确监测**：精确判断电脑实际使用状态
-- **数据可视化**：通过图表直观展示使用模式
-- **模块化设计**：各功能模块相对独立，便于维护和扩展
-- **配置灵活性**：支持多种方式修改设置
+## 2. 系统架构
 
-### 1.2 系统架构
-
-系统采用分层架构设计，主要包括以下几层：
-
-1. **数据采集层**：监控鼠标和键盘活动
-2. **数据处理层**：分析活动数据，判断使用状态
-3. **数据存储层**：保存使用记录到数据库
-4. **业务逻辑层**：实现提醒、统计等核心功能
-5. **表示层**：提供用户界面和可视化展示
-6. **配置管理层**：处理程序设置的读取和保存
-
-### 1.3 模块组织
-
-- **主程序模块** (main.py)：整合各模块，提供系统托盘功能
-- **活动监控模块** (activity_monitor.py)：监控鼠标和键盘活动
-- **时间跟踪模块** (time_tracker.py)：计算使用时间，触发提醒
-- **数据库管理模块** (db_manager.py)：处理数据存储和检索
-- **通知系统模块** (notification.py)：显示桌面通知
-- **数据可视化模块** (visualization.py)：生成统计图表
-- **监控界面模块** (ui_monitor.py)：实时显示使用状态
-- **配置管理模块** (config_manager.py)：管理程序配置
-- **设置界面模块** (settings_ui.py)：提供配置的图形界面
-
-## 2. 核心功能模块详解
-
-### 2.1 活动监控模块 (activity_monitor.py)
-
-此模块负责检测用户的鼠标和键盘活动，是判断电脑是否被使用的基础。
-
-```python
-class ActivityMonitor:
-    def __init__(self):
-        """初始化活动监控器"""
-        self.mouse_position = None
-        self.last_mouse_position = None
-        self.key_press_count = 0
-        self.mouse_move_count = 0  # 鼠标移动计数
-        self.last_activity_time = time.time()
-        self.is_active_minute = False
-        self.mouse_listener = None
-        self.keyboard_listener = None
-        self.running = False
-        self.lock = threading.Lock()
+### 2.1 模块划分
+```
+project/
+├── main.py              # 主程序入口
+├── ui_monitor.py        # 主界面和监控逻辑
+├── time_tracker.py      # 时间追踪核心
+├── database.py          # 数据库操作
+├── report_generator.py  # 报告生成
+├── utils/
+│   ├── __init__.py
+│   ├── logger.py        # 日志工具
+│   └── config.py        # 配置管理
+└── logs/               # 日志目录
 ```
 
-**关键技术点**：
-- 使用pynput库监听鼠标和键盘事件
-- 使用线程锁(threading.Lock)确保线程安全
-- 每分钟检查一次活动状态，记录鼠标移动次数和按键次数
-- 通过对比鼠标位置变化和按键次数来判断活动状态
+### 2.2 核心类设计
 
-### 2.2 时间跟踪模块 (time_tracker.py)
+#### 2.2.1 TimeTracker 类
+负责时间追踪的核心类，主要功能：
+- 活动状态检测
+- 使用时间计算
+- 会话管理
 
-此模块负责跟踪和计算连续使用时间，决定何时触发休息提醒。
-
+核心代码：
 ```python
 class TimeTracker:
-    def __init__(self, activity_monitor, notification_system, db_manager=None):
-        """初始化时间跟踪器"""
-        self.activity_monitor = activity_monitor
-        self.notification_system = notification_system
-        self.db_manager = db_manager  # 数据库管理器
-        self.continuous_usage_minutes = 0
-        self.inactive_minutes = 0
-        self.running = False
-        self.lock = threading.Lock()
-        self.thread = None
-        self.daily_usage_minutes = 0
-        self.usage_log = {}  # 格式: {日期: 使用分钟数}
-        self.today = datetime.now().strftime("%Y-%m-%d")
+    def __init__(self):
+        self.last_active_time = datetime.now()
+        self.current_session_start = datetime.now()
+        self.total_active_time = timedelta()
+        self.is_active = False
+        self.sessions = []
+        
+    def check_activity_minute(self):
+        """检查当前分钟是否有活动"""
+        current_time = datetime.now()
+        if current_time - self.last_active_time < timedelta(minutes=1):
+            return True
+        return False
+        
+    def update_activity(self):
+        """更新活动状态"""
+        current_time = datetime.now()
+        if self.check_activity_minute():
+            if not self.is_active:
+                self.start_session()
+            self.total_active_time += timedelta(minutes=1)
+        else:
+            if self.is_active:
+                self.end_session()
+        self.last_active_time = current_time
 ```
 
-**核心逻辑**：
-1. 通过后台线程每分钟检查一次活动状态
-2. 如果检测到活动，增加连续使用时间计数
-3. 连续使用达到阈值(默认60分钟)时触发提醒
-4. 连续无活动达到阈值(默认10分钟)时重置计时器
-5. 记录每日总使用时间和使用模式
+#### 2.2.2 DatabaseManager 类
+负责数据库操作，主要功能：
+- 数据库连接管理
+- 数据记录和查询
+- 数据统计
 
-### 2.3 数据库管理模块 (db_manager.py)
-
-此模块处理所有与数据库相关的操作，包括保存活动记录和查询统计数据。
-
+核心代码：
 ```python
 class DatabaseManager:
-    def __init__(self, db_path="usage_data.db"):
-        """初始化数据库管理器"""
+    def __init__(self, db_path):
         self.db_path = db_path
-        self.local = threading.local()  # 创建线程局部存储对象
+        self.conn = None
+        self.cursor = None
+        self.connect()
         
-        # 初始化主线程的连接
-        self._initialize_db()
+    def connect(self):
+        """建立数据库连接"""
+        self.conn = sqlite3.connect(self.db_path)
+        self.cursor = self.conn.cursor()
+        self._create_tables()
+        
+    def _create_tables(self):
+        """创建必要的数据表"""
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS minute_activity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME NOT NULL,
+                is_active BOOLEAN NOT NULL
+            )
+        ''')
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_summary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                total_minutes INTEGER NOT NULL,
+                longest_session INTEGER NOT NULL,
+                session_count INTEGER NOT NULL
+            )
+        ''')
+        self.conn.commit()
 ```
 
-**设计要点**：
-- 使用SQLite作为数据存储引擎，轻量级且无需额外服务
-- 采用线程局部存储(threading.local)解决SQLite多线程访问问题
-- 表设计：
-  - minute_activity表：记录每分钟的详细活动数据
-  - daily_summary表：存储每日汇总使用统计
-- 提供各种查询方法，支持不同时间维度的数据统计
+#### 2.2.3 ReportGenerator 类
+负责报告生成，主要功能：
+- 月度数据统计
+- 图表生成
+- 报告格式化
 
-### 2.4 数据可视化模块 (visualization.py)
-
-此模块负责生成各种可视化报表，直观展示用户的电脑使用情况。
-
+核心代码：
 ```python
-class UsageVisualizer:
-    def __init__(self, db_manager, output_dir="reports"):
-        """初始化可视化器"""
+class ReportGenerator:
+    def __init__(self, db_manager):
         self.db_manager = db_manager
-        self.output_dir = output_dir
         
-        # 确保输出目录存在
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+    def generate_monthly_report(self):
+        """生成月度报告"""
+        # 获取月度数据
+        monthly_data = self.db_manager.get_monthly_summary()
+        
+        # 创建图表
+        plt.figure(figsize=(12, 6))
+        plt.plot(monthly_data['date'], monthly_data['total_minutes'])
+        plt.title('月度使用时间趋势')
+        plt.xlabel('日期')
+        plt.ylabel('使用时间(分钟)')
+        
+        # 保存报告
+        report_path = f'reports/monthly_report_{datetime.now().strftime("%Y%m")}.pdf'
+        plt.savefig(report_path)
+        plt.close()
+```
+
+## 3. 关键功能实现
+
+### 3.1 活动监控机制
+```python
+def check_activity(self):
+    """检查用户活动状态"""
+    try:
+        # 获取当前活动窗口
+        active_window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+        
+        # 检查鼠标和键盘状态
+        mouse_x, mouse_y = win32api.GetCursorPos()
+        keyboard_state = win32api.GetKeyState(0x10)  # Shift键状态
+        
+        # 判断活动状态
+        if active_window and (mouse_x != self.last_mouse_x or 
+                            mouse_y != self.last_mouse_y or 
+                            keyboard_state != self.last_keyboard_state):
+            self.last_active_time = datetime.now()
+            self.last_mouse_x, self.last_mouse_y = mouse_x, mouse_y
+            self.last_keyboard_state = keyboard_state
+            return True
             
-        # 设置中文字体支持
-        self._setup_fonts()
+        return False
+    except Exception as e:
+        logger.error(f"活动检测错误: {str(e)}")
+        return False
 ```
 
-**可视化方案**：
-1. **每日使用报告**：柱状图显示每小时使用情况
-2. **周活动热力图**：热力图展示一周内的使用模式
-3. **月度使用摘要**：折线图跟踪使用趋势
-4. **HTML综合报告**：将所有图表整合到单个HTML页面
-
-### 2.5 UI监视器模块 (ui_monitor.py)
-
-此模块提供了图形用户界面，实时显示使用状态和各项统计数据。
-
+### 3.2 数据持久化
 ```python
-class MonitorWindow:
-    def __init__(self, time_tracker, visualizer):
-        """初始化监视器窗口"""
-        self.time_tracker = time_tracker
-        self.visualizer = visualizer
-        self.root = None
-        self.running = False
-        self.thread = None
-        self.next_report_time = None
+def record_activity(self, is_active):
+    """记录活动状态"""
+    try:
+        current_time = datetime.now()
+        self.cursor.execute('''
+            INSERT INTO minute_activity (timestamp, is_active)
+            VALUES (?, ?)
+        ''', (current_time, is_active))
+        self.conn.commit()
+    except Exception as e:
+        logger.error(f"记录活动状态错误: {str(e)}")
+```
+
+### 3.3 后台更新机制
+```python
+def _keep_alive_tick(self):
+    """保持程序活跃的后台更新"""
+    try:
+        # 检查活动状态
+        is_active = self.activity_monitor.check_activity_minute()
         
-        # 初始化UI
-        self._init_ui()
+        # 更新使用时间
+        self.activity_monitor.update_activity()
         
-        # 设置下一次报告生成时间(整点)
-        self._set_next_report_time()
+        # 记录到数据库
+        self.db_manager.record_activity(is_active)
+        
+        # 更新界面
+        self.update_display()
+        
+        # 设置下一次更新
+        self.keep_alive_timer = self.root.after(5000, self._keep_alive_tick)
+    except Exception as e:
+        logger.error(f"后台更新错误: {str(e)}")
 ```
 
-**界面功能**：
-- 显示当前连续使用时间
-- 显示今日总使用时间
-- 显示最近活动时间
-- 提供报告生成和查看功能
-- 提供设置访问入口
-- 自动更新UI信息
+## 4. 数据存储设计
 
-### 2.6 配置管理模块 (config_manager.py)
+### 4.1 数据库表结构
+1. minute_activity 表
+   - id: 主键
+   - timestamp: 时间戳
+   - is_active: 活动状态
 
-此模块处理程序配置的加载和保存，支持从外部JSON文件读取设置。
+2. daily_summary 表
+   - id: 主键
+   - date: 日期
+   - total_minutes: 总使用时间
+   - longest_session: 最长会话时间
+   - session_count: 会话次数
 
+### 4.2 数据统计逻辑
 ```python
-class ConfigManager:
-    def __init__(self):
-        """初始化配置管理器"""
-        self.config = {}
-        self.config_file = self._get_config_file_path()
-        self.load_config()
+def update_daily_summary(self):
+    """更新每日统计"""
+    try:
+        today = datetime.now().date()
+        
+        # 获取今日活动记录
+        self.cursor.execute('''
+            SELECT COUNT(*) as total_minutes,
+                   MAX(session_duration) as longest_session,
+                   COUNT(DISTINCT session_id) as session_count
+            FROM minute_activity
+            WHERE DATE(timestamp) = ?
+            AND is_active = 1
+        ''', (today,))
+        
+        result = self.cursor.fetchone()
+        
+        # 更新或插入统计记录
+        self.cursor.execute('''
+            INSERT OR REPLACE INTO daily_summary 
+            (date, total_minutes, longest_session, session_count)
+            VALUES (?, ?, ?, ?)
+        ''', (today, result[0], result[1], result[2]))
+        
+        self.conn.commit()
+    except Exception as e:
+        logger.error(f"更新每日统计错误: {str(e)}")
 ```
 
-**配置管理策略**：
-- 使用JSON格式存储配置，易于人工编辑
-- 提供默认配置，确保程序正常运行
-- 支持配置的动态加载和保存
-- 在启动时自动检测配置文件，不存在则创建默认配置
+## 5. 用户界面设计
 
-### 2.7 设置界面模块 (settings_ui.py)
-
-此模块提供了图形化的设置界面，让用户可以方便地修改程序配置。
-
+### 5.1 主界面布局
 ```python
-class SettingsWindow:
-    def __init__(self, parent=None):
-        """初始化设置窗口"""
-        self.window = tk.Toplevel(parent) if parent else tk.Tk()
-        self.window.title("设置")
-        self.window.geometry("500x600")
-        self.window.resizable(False, False)
+def create_widgets(self):
+    """创建界面组件"""
+    # 状态标签
+    self.status_label = ttk.Label(
+        self.root,
+        text="监控状态: 运行中",
+        font=("Arial", 12)
+    )
+    self.status_label.pack(pady=10)
+    
+    # 使用时间显示
+    self.time_label = ttk.Label(
+        self.root,
+        text="今日使用时间: 0分钟",
+        font=("Arial", 14)
+    )
+    self.time_label.pack(pady=10)
+    
+    # 控制按钮
+    self.button_frame = ttk.Frame(self.root)
+    self.button_frame.pack(pady=10)
+    
+    self.start_button = ttk.Button(
+        self.button_frame,
+        text="开始监控",
+        command=self.start_monitoring
+    )
+    self.start_button.pack(side=tk.LEFT, padx=5)
+    
+    self.stop_button = ttk.Button(
+        self.button_frame,
+        text="停止监控",
+        command=self.stop_monitoring
+    )
+    self.stop_button.pack(side=tk.LEFT, padx=5)
 ```
 
-**设置界面特点**：
-- 分类标签页展示不同类型的设置
-- 支持数值、文本、复选框等多种设置类型
-- 提供重置为默认设置功能
-- 设置实时保存到配置文件
-
-## 3. 关键技术实现
-
-### 3.1 多线程实现
-
-程序中使用多线程处理不同的任务，主要包括：
-- 主界面线程：处理UI交互
-- 活动监控线程：监听鼠标键盘事件
-- 时间跟踪线程：定时检查活动状态
-- 托盘图标线程：处理系统托盘相关操作
-
-线程同步通过锁(threading.Lock)和事件(threading.Event)实现，确保数据一致性和线程安全。
-
-### 3.2 数据库架构
-
-数据库采用SQLite，包含两个主要表：
-
-1. **minute_activity表**：
-   - id：主键
-   - timestamp：记录时间
-   - date：日期部分
-   - time：时间部分
-   - is_active：是否活跃
-   - mouse_moves：鼠标移动次数
-   - key_presses：按键次数
-
-2. **daily_summary表**：
-   - date：日期(主键)
-   - total_active_minutes：总活跃分钟数
-   - longest_session：最长连续会话
-   - last_updated：最后更新时间
-
-### 3.3 可视化实现
-
-可视化使用matplotlib和seaborn库实现，主要图表类型：
-
-1. **柱状图**：使用plt.bar()显示每小时使用情况
-2. **热力图**：使用ax.imshow()展示一周使用模式
-3. **折线图**：使用plt.plot()展示长期使用趋势
-
-为确保中文显示正常，设置了中文字体支持：
+### 5.2 界面更新机制
 ```python
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS']
-plt.rcParams['axes.unicode_minus'] = False
+def update_display(self):
+    """更新界面显示"""
+    try:
+        # 更新使用时间显示
+        total_minutes = self.activity_monitor.total_active_time.total_seconds() / 60
+        self.time_label.config(
+            text=f"今日使用时间: {int(total_minutes)}分钟"
+        )
+        
+        # 更新状态显示
+        status = "运行中" if self.is_monitoring else "已停止"
+        self.status_label.config(text=f"监控状态: {status}")
+        
+        # 更新按钮状态
+        self.start_button.config(state=tk.DISABLED if self.is_monitoring else tk.NORMAL)
+        self.stop_button.config(state=tk.NORMAL if self.is_monitoring else tk.DISABLED)
+    except Exception as e:
+        logger.error(f"更新界面显示错误: {str(e)}")
 ```
 
-### 3.4 配置外部化
+## 6. 错误处理机制
 
-配置外部化通过JSON文件实现，主要优势：
-
-1. **易读性**：JSON格式人类可读，便于直接编辑
-2. **持久性**：配置保存在独立文件，程序更新不会丢失设置
-3. **灵活性**：支持运行时修改，不需重新编译程序
-
-配置加载过程：
-1. 检查配置文件是否存在
-2. 如果存在，加载并与默认配置合并
-3. 如果不存在，创建默认配置文件
-4. 暴露配置项给程序其他部分使用
-
-## 4. 打包与部署
-
-### 4.1 PyInstaller打包
-
-使用PyInstaller将Python程序打包成独立可执行文件：
-
-```
-pyinstaller --onefile --noconsole ^
---add-data "icon.ico;." ^
---hidden-import plyer.platforms ^
---hidden-import plyer.platforms.win.notification ^
---hidden-import matplotlib ^
---hidden-import seaborn ^
---hidden-import numpy ^
---hidden-import config_manager ^
---hidden-import settings_ui ^
---icon=icon.ico ^
---name="电脑使用时间监控" ^
-main.py
+### 6.1 异常捕获
+```python
+def safe_execute(self, func, *args, **kwargs):
+    """安全执行函数"""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        logger.error(f"执行错误: {str(e)}")
+        return None
 ```
 
-### 4.2 针对Windows 7的兼容性处理
+### 6.2 日志记录
+```python
+def setup_logger():
+    """配置日志系统"""
+    logger = logging.getLogger('usage_monitor')
+    logger.setLevel(logging.INFO)
+    
+    # 文件处理器
+    log_file = f'logs/usage_monitor_{datetime.now().strftime("%Y-%m-%d")}.log'
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    
+    # 控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # 格式化器
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+```
 
-为确保在Windows 7上正常运行：
-1. 使用Python 3.8作为基础环境
-2. 使用兼容Windows 7的库版本
-3. 确保正确处理路径和文件访问权限
-4. 添加必要的Visual C++运行库依赖说明
+## 7. 性能优化
 
-### 4.3 资源处理
+### 7.1 数据库优化
+- 使用索引优化查询性能
+- 定期清理历史数据
+- 使用事务提高写入效率
 
-程序运行时会动态生成或访问以下资源：
-1. 数据库文件：存储使用记录
-2. 配置文件：存储用户设置
-3. 报告文件夹：存储生成的报表
-4. 日志文件：记录程序运行状态
+### 7.2 内存管理
+- 及时释放不需要的资源
+- 控制日志文件大小
+- 优化数据结构使用
 
-## 5. 未来扩展方向
+## 8. 安全性考虑
 
-1. **数据分析增强**：添加更多统计分析功能，如工作效率评估
-2. **休息建议**：提供针对性的休息建议和简单的放松运动指导
-3. **多设备同步**：支持多台电脑数据同步和汇总
-4. **定制化提醒规则**：允许用户设置更复杂的提醒规则
-5. **导出功能**：支持导出数据到Excel或CSV格式
-6. **更丰富的可视化**：添加更多类型的图表和交互式可视化
+### 8.1 数据安全
+- 数据库文件加密
+- 敏感信息保护
+- 定期数据备份
 
-## 6. 结语
+### 8.2 程序安全
+- 异常处理机制
+- 资源释放保证
+- 权限控制
 
-电脑使用时间监控工具采用模块化设计，将不同功能明确分离，使得代码结构清晰，便于维护和扩展。通过精确的活动监测、数据存储、统计分析和可视化展示，帮助用户了解自己的电脑使用习惯，预防久坐带来的健康问题。灵活的配置选项和友好的用户界面使其既适合普通用户使用，也能满足高级用户的定制需求。 
+## 9. 后续优化方向
+
+### 9.1 功能扩展
+- 添加更多统计维度
+- 支持自定义报告模板
+- 增加数据导出功能
+
+### 9.2 性能提升
+- 优化数据库操作
+- 改进活动检测算法
+- 减少资源占用
+
+### 9.3 用户体验
+- 优化界面设计
+- 添加配置界面
+- 提供更多可视化选项 
